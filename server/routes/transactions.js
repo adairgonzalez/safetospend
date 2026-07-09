@@ -31,12 +31,16 @@ router.get('/safe-to-spend', async (req, res) => {
     return res.status(500).json({ error: p?.error_message || e.message, error_code: p?.error_code });
   }
 
-  const paychecks = txns.filter(t => t.amount > 1000 && t.amount < 5000 && PAYCHECK_KEYWORDS.some(k => t.name.toUpperCase().includes(k)))
-    .sort((a,b) => new Date(b.date) - new Date(a.date));
-  if (!paychecks.length) return res.json({ error: 'No paycheck found' });
+  // Plaid amounts: positive = money out, negative = money in. Paychecks are negative.
+  const paychecks = txns.filter(t => {
+    if (process.env.PAYCHECK_ACCOUNT_ID && process.env.PAYCHECK_ACCOUNT_ID !== 'placeholder' && t.account_id !== process.env.PAYCHECK_ACCOUNT_ID) return false;
+    const deposit = -t.amount;
+    return deposit > 1000 && deposit < 5000 && PAYCHECK_KEYWORDS.some(k => (t.name || '').toUpperCase().includes(k));
+  }).sort((a,b) => new Date(b.date) - new Date(a.date));
+  if (!paychecks.length) return res.json({ error: 'No paycheck found yet', retryable: true });
 
   const paycheck = paychecks[0];
-  const payAmt = paycheck.amount, payDate = paycheck.date;
+  const payAmt = -paycheck.amount, payDate = paycheck.date;
   const template = db.prepare('SELECT * FROM bills_template').all();
   const allocated = template.reduce((s,r) => s + r.amount, 0);
   const discBudget = payAmt - allocated;

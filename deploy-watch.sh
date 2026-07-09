@@ -6,6 +6,7 @@ set -u
 cd "$(dirname "$0")"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 SERVER_PID=""
+WEBHOOK_PID=""
 
 notify() {
   local topic
@@ -21,10 +22,16 @@ install_and_build() {
 start_server() {
   (cd server && exec node index.js) &
   SERVER_PID=$!
+  if grep -q '^PLAID_WEBHOOK_URL=' .env 2>/dev/null && ! grep -q '^PLAID_WEBHOOK_URL=$' .env 2>/dev/null; then
+    (cd server && exec node webhook.js) &
+    WEBHOOK_PID=$!
+  fi
 }
 
 stop_server() {
   [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null && wait "$SERVER_PID" 2>/dev/null
+  [ -n "$WEBHOOK_PID" ] && kill "$WEBHOOK_PID" 2>/dev/null && wait "$WEBHOOK_PID" 2>/dev/null
+  SERVER_PID=""; WEBHOOK_PID=""
 }
 trap 'stop_server; exit 0' INT TERM
 

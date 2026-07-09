@@ -31,6 +31,15 @@ export default function TransactionsDebug({ token }) {
       .catch(e => { setError(e.message); setRefreshing(false); });
   };
 
+  const [webhookMsg, setWebhookMsg] = useState(null);
+  const registerWebhook = () => {
+    setWebhookMsg('Registering…');
+    fetch('/api/plaid/set-webhook', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setWebhookMsg(d.success ? `Webhook registered: ${d.webhook}` : `Failed: ${d.error}`))
+      .catch(e => setWebhookMsg(`Failed: ${e.message}`));
+  };
+
   return (
     <div className="container">
       <div className="topbar">
@@ -41,6 +50,10 @@ export default function TransactionsDebug({ token }) {
         {refreshing ? 'Refreshing…' : 'Refresh from bank'}
       </button>
       {refreshMsg && <p className="muted center" style={{marginTop:-8}}>{refreshMsg}</p>}
+      <button className="btn btn-ghost btn-block" style={{marginBottom:16}} onClick={registerWebhook}>
+        Register webhook with Plaid
+      </button>
+      {webhookMsg && <p className={webhookMsg.startsWith('Failed') ? 'error-text center' : 'muted center'} style={{marginTop:-8, marginBottom:16}}>{webhookMsg}</p>}
       {error && <p className="error-text">{error}</p>}
       {!error && !txns && <p className="muted">Loading…</p>}
       {txns && txns.length === 0 && <p className="muted">No transactions returned.</p>}

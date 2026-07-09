@@ -47,14 +47,15 @@ async function recordBaselines() {
   }
 }
 
-async function tick(sendReminder) {
+// forceRefresh: skip when Plaid already told us via webhook that fresh data
+// is ready (transactionsRefresh is a billed call - no point paying for it
+// twice). sendReminder: whether an unfinished transfer should re-notify.
+async function tick({ forceRefresh = true, sendReminder = false } = {}) {
   try {
-    // Ask Plaid to pull fresh data from the bank before reading it, so
-    // spending shows up without the user having to open the app and tap
-    // Refresh. This costs a Plaid API call each run, hence every 30 min
-    // rather than something tighter.
-    const refreshResult = await api('/transactions/force-refresh', 'POST').catch(e => ({ error: e.message }));
-    if (refreshResult?.error) console.error('scheduled force-refresh failed:', refreshResult.error, refreshResult.error_code || '');
+    if (forceRefresh) {
+      const refreshResult = await api('/transactions/force-refresh', 'POST').catch(e => ({ error: e.message }));
+      if (refreshResult?.error) console.error('scheduled force-refresh failed:', refreshResult.error, refreshResult.error_code || '');
+    }
     const data = await api('/transactions/safe-to-spend');
     if (!data || data.error) return;
     const payDate = data.paycheckDate;
@@ -88,9 +89,12 @@ async function tick(sendReminder) {
 }
 
 if (TOPIC) {
-  cron.schedule('*/30 * * * *', () => tick(false));
-  cron.schedule('5 10,16,20 * * *', () => tick(true));
-  console.log(`Notifications on: ntfy.sh/${TOPIC} (checking every 30 min)`);
+  // Webhooks (see webhook.js) are now the primary sync trigger - instant,
+  // and each one is a free transactionsGet, not a billed refresh. This is
+  // just a safety net in case a webhook is ever missed or Funnel is down.
+  cron.schedule('0 * * * *', () => tick({ forceRefresh: true, sendReminder: false }));
+  cron.schedule('5 10,16,20 * * *', () => tick({ forceRefresh: true, sendReminder: true }));
+  console.log(`Notifications on: ntfy.sh/${TOPIC} (webhook-driven, hourly fallback poll)`);
 } else {
   console.log('Notifications off: set NTFY_TOPIC in .env to enable');
 }

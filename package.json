@@ -4,7 +4,8 @@
     "start": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && node index.js",
     "client": "cd client && npm start",
-    "build": "cd client && npm run build"
+    "build": "cd client && npm run build",
+    "deploy": "bash deploy-watch.sh"
   },
   "devDependencies": { "concurrently": "^8.2.0" }
 }

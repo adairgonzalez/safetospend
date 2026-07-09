@@ -4,12 +4,14 @@ const plaidClient = require('../plaidClient');
 const db = require('../db');
 
 router.post('/create_link_token', async (req, res) => {
-  const response = await plaidClient.linkTokenCreate({
+  const request = {
     user: { client_user_id: req.user.userId.toString() },
     client_name: 'SafeToSpend',
-    products: ['transactions', 'auth'],
+    products: ['transactions'],
     country_codes: ['US'], language: 'en',
-  });
+  };
+  if (process.env.PLAID_REDIRECT_URI) request.redirect_uri = process.env.PLAID_REDIRECT_URI;
+  const response = await plaidClient.linkTokenCreate(request);
   res.json({ link_token: response.data.link_token });
 });
 

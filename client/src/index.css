@@ -23,6 +23,13 @@ body {
 
 .container { max-width: 640px; margin: 0 auto; padding: 32px 20px 64px; }
 
+.qa-banner {
+  position: sticky; top: 0; z-index: 10;
+  background: #7f1d1d; color: #fecaca;
+  text-align: center; padding: 6px 12px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+}
+
 .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
 .brand { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; display: flex; gap: 10px; align-items: center; }
 .brand-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }

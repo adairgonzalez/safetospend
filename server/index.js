@@ -18,7 +18,21 @@ app.use('/api/plaid', authMiddleware, plaidRoutes);
 app.use('/api/template', authMiddleware, templateRoutes);
 app.use('/api/transactions', authMiddleware, transactionsRoutes);
 app.use('/api/verify', authMiddleware, verifyRoutes);
+const isQA = process.env.PLAID_ENV !== 'production';
+app.get('/api/meta', (req, res) => res.json({ env: process.env.PLAID_ENV || 'sandbox', qa: isQA }));
+
 const buildDir = path.join(__dirname, '../client/build');
+if (isQA && fs.existsSync(buildDir)) {
+  // QA wears red so it can't be mistaken for the real thing
+  app.get('/apple-touch-icon.png', (req, res) => res.sendFile(path.join(buildDir, 'apple-touch-icon-qa.png')));
+  app.get('/icon.svg', (req, res) => res.sendFile(path.join(buildDir, 'icon-qa.svg')));
+  app.get('/manifest.json', (req, res) => {
+    const m = JSON.parse(fs.readFileSync(path.join(buildDir, 'manifest.json'), 'utf8'));
+    m.name = 'Safe to Spend QA'; m.short_name = 'STS QA';
+    m.icons = [{ src: 'icon-qa.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }];
+    res.json(m);
+  });
+}
 if (fs.existsSync(buildDir)) {
   app.use(express.static(buildDir));
   app.get('*', (req, res) => res.sendFile(path.join(buildDir, 'index.html')));

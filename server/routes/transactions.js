@@ -32,10 +32,15 @@ router.get('/safe-to-spend', async (req, res) => {
   }
 
   // Plaid amounts: positive = money out, negative = money in. Paychecks are negative.
+  // A pinned account is a strong enough signal on its own (employer names rarely
+  // contain PAYROLL/DEPOSIT); only fall back to the keyword list when no
+  // account is pinned, where amount range alone would be too loose.
+  const hasPinnedAccount = process.env.PAYCHECK_ACCOUNT_ID && process.env.PAYCHECK_ACCOUNT_ID !== 'placeholder';
   const paychecks = txns.filter(t => {
-    if (process.env.PAYCHECK_ACCOUNT_ID && process.env.PAYCHECK_ACCOUNT_ID !== 'placeholder' && t.account_id !== process.env.PAYCHECK_ACCOUNT_ID) return false;
+    if (hasPinnedAccount && t.account_id !== process.env.PAYCHECK_ACCOUNT_ID) return false;
     const deposit = -t.amount;
-    return deposit > 1000 && deposit < 5000 && PAYCHECK_KEYWORDS.some(k => (t.name || '').toUpperCase().includes(k));
+    if (!(deposit > 1000 && deposit < 5000)) return false;
+    return hasPinnedAccount || PAYCHECK_KEYWORDS.some(k => (t.name || '').toUpperCase().includes(k));
   }).sort((a,b) => new Date(b.date) - new Date(a.date));
   if (!paychecks.length) return res.json({ error: 'No paycheck found yet', retryable: true });
 

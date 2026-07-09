@@ -53,7 +53,8 @@ async function tick(sendReminder) {
     // spending shows up without the user having to open the app and tap
     // Refresh. This costs a Plaid API call each run, hence every 30 min
     // rather than something tighter.
-    await api('/transactions/force-refresh', 'POST').catch(() => {});
+    const refreshResult = await api('/transactions/force-refresh', 'POST').catch(e => ({ error: e.message }));
+    if (refreshResult?.error) console.error('scheduled force-refresh failed:', refreshResult.error, refreshResult.error_code || '');
     const data = await api('/transactions/safe-to-spend');
     if (!data || data.error) return;
     const payDate = data.paycheckDate;

@@ -24,11 +24,15 @@ export default function Dashboard({ token, onLogout }) {
     fetch('/api/transactions/force-refresh', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => {
-        if (d.error) { setRefreshing(false); return; }
+        if (d.error) {
+          setRefreshMsg(`Refresh failed: ${d.error}${d.error_code ? ` (${d.error_code})` : ''}`);
+          setRefreshing(false);
+          return;
+        }
         setRefreshMsg('Asked your bank for the latest activity — reloading in 20s…');
         setTimeout(() => { load(); setRefreshing(false); setRefreshMsg(null); }, 20000);
       })
-      .catch(() => setRefreshing(false));
+      .catch(e => { setRefreshMsg(`Could not reach server: ${e.message}`); setRefreshing(false); });
   };
 
   const shell = (children, showRefresh) => (
@@ -44,7 +48,12 @@ export default function Dashboard({ token, onLogout }) {
           <button onClick={onLogout} className="btn btn-ghost btn-sm">Log out</button>
         </div>
       </div>
-      {refreshMsg && <p className="muted center" style={{marginTop:-16, marginBottom:16, fontSize:13}}>{refreshMsg}</p>}
+      {refreshMsg && (
+        <p className={refreshMsg.startsWith('Refresh failed') || refreshMsg.startsWith('Could not reach') ? 'error-text center' : 'muted center'}
+           style={{marginTop:-16, marginBottom:16, fontSize:13}}>
+          {refreshMsg}
+        </p>
+      )}
       {children}
     </div>
   );

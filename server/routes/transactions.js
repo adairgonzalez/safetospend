@@ -79,4 +79,21 @@ router.get('/debug', async (req, res) => {
   }
 });
 
+// Plaid's transactionsGet returns whatever it last synced from the bank on
+// its own schedule, which can lag same-day deposits by up to a day.
+// transactionsRefresh asks Plaid to fetch fresh data from Capital One now;
+// new transactions typically land within 10-60 seconds after this returns.
+router.post('/force-refresh', async (req, res) => {
+  const user = db.prepare('SELECT plaid_access_token FROM users WHERE id=?').get(req.user.userId);
+  if (!user?.plaid_access_token) return res.json({ error: 'No bank' });
+  try {
+    await plaidClient.transactionsRefresh({ access_token: user.plaid_access_token });
+    res.json({ refreshing: true });
+  } catch (e) {
+    const p = e.response?.data;
+    console.error('transactionsRefresh failed:', p || e.message);
+    res.status(500).json({ error: p?.error_message || e.message, error_code: p?.error_code });
+  }
+});
+
 module.exports = router;

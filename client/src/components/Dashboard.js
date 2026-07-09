@@ -8,6 +8,8 @@ const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { sty
 export default function Dashboard({ token, onLogout }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState(null);
   const load = useCallback(() => {
     setLoading(true);
     fetch('/api/transactions/safe-to-spend', { headers: { Authorization: `Bearer ${token}` } })
@@ -15,6 +17,19 @@ export default function Dashboard({ token, onLogout }) {
       .catch(e => { setData({ error: `Could not reach server: ${e.message}` }); setLoading(false); });
   }, [token]);
   useEffect(() => { load(); }, [load]);
+
+  const forceRefresh = () => {
+    setRefreshing(true);
+    setRefreshMsg(null);
+    fetch('/api/transactions/force-refresh', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) { setRefreshing(false); return; }
+        setRefreshMsg('Asked your bank for the latest activity — reloading in 20s…');
+        setTimeout(() => { load(); setRefreshing(false); setRefreshMsg(null); }, 20000);
+      })
+      .catch(() => setRefreshing(false));
+  };
 
   const shell = (children) => (
     <div className="container">
@@ -32,8 +47,15 @@ export default function Dashboard({ token, onLogout }) {
     <div className="card empty">
       <h2>{data.noBank ? 'Connect your bank' : 'Nothing to show yet'}</h2>
       <p>{data.noBank ? 'Link your Capital One account to start tracking.' : data.error}</p>
-      {data.noBank ? <PlaidLink token={token} /> : <button className="btn" onClick={load}>Refresh</button>}
-      {!data.noBank && <div className="link-row" style={{marginTop:14}}><Link to="/debug" className="quiet">View raw transactions</Link></div>}
+      {data.noBank
+        ? <PlaidLink token={token} />
+        : (
+          <>
+            <button className="btn" onClick={forceRefresh} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh from bank'}</button>
+            {refreshMsg && <p className="muted" style={{marginTop:10, fontSize:13}}>{refreshMsg}</p>}
+            <div className="link-row" style={{marginTop:14}}><Link to="/debug" className="quiet">View raw transactions</Link></div>
+          </>
+        )}
     </div>
   );
 

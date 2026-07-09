@@ -6,13 +6,30 @@ const usd = (n) => Number(n).toLocaleString('en-US', { style: 'currency', curren
 export default function TransactionsDebug({ token }) {
   const [txns, setTxns] = useState(null);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState(null);
 
-  useEffect(() => {
+  const load = () => {
     fetch('/api/transactions/debug', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(d => { if (d.error) setError(d.error); else setTxns(d); })
+      .then(d => { if (d.error) setError(d.error); else { setTxns(d); setError(null); } })
       .catch(e => setError(e.message));
-  }, [token]);
+  };
+
+  useEffect(load, [token]);
+
+  const forceRefresh = () => {
+    setRefreshing(true);
+    setRefreshMsg(null);
+    fetch('/api/transactions/force-refresh', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) { setError(d.error); setRefreshing(false); return; }
+        setRefreshMsg('Asked your bank for the latest activity — reloading in 20s…');
+        setTimeout(() => { load(); setRefreshing(false); setRefreshMsg(null); }, 20000);
+      })
+      .catch(e => { setError(e.message); setRefreshing(false); });
+  };
 
   return (
     <div className="container">
@@ -20,6 +37,10 @@ export default function TransactionsDebug({ token }) {
         <div className="brand"><span className="brand-dot" />Raw transactions</div>
         <Link to="/dashboard" className="btn btn-ghost btn-sm">Back</Link>
       </div>
+      <button className="btn btn-block" style={{marginBottom:16}} onClick={forceRefresh} disabled={refreshing}>
+        {refreshing ? 'Refreshing…' : 'Refresh from bank'}
+      </button>
+      {refreshMsg && <p className="muted center" style={{marginTop:-8}}>{refreshMsg}</p>}
       {error && <p className="error-text">{error}</p>}
       {!error && !txns && <p className="muted">Loading…</p>}
       {txns && txns.length === 0 && <p className="muted">No transactions returned.</p>}

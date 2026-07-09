@@ -4,3 +4,10 @@ import './index.css';
 import App from './App';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App />);
+
+// Requires a secure context (HTTPS); silently skipped on plain http.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}

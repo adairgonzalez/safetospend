@@ -5,7 +5,8 @@
     "server": "cd server && node index.js",
     "client": "cd client && npm start",
     "build": "cd client && npm run build",
-    "deploy": "bash deploy-watch.sh"
+    "deploy": "bash deploy-watch.sh",
+    "autostart": "bash setup-autostart.sh"
   },
   "devDependencies": { "concurrently": "^8.2.0" }
 }

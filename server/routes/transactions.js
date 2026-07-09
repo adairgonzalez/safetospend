@@ -4,7 +4,17 @@ const plaidClient = require('../plaidClient');
 const db = require('../db');
 
 const PAYCHECK_KEYWORDS = ['PAYROLL','DIRECT DEP','DEPOSIT'];
-const SPENDING_CATS = ['Food and Drink','Restaurants','Shops','Entertainment','Recreation','Shopping','Clothing','Electronics','Gas','Coffee','Fast Food','Alcohol','Bar'];
+
+// True for internal transfers (e.g. the bill money moving to savings), which
+// are already accounted for via discretionaryBudget and must not also be
+// subtracted as spending.
+function isTransfer(t) {
+  const pfc = t.personal_finance_category?.primary || '';
+  if (pfc === 'TRANSFER_IN' || pfc === 'TRANSFER_OUT') return true;
+  const legacy = (t.category || []).join(' ').toUpperCase();
+  if (legacy.includes('TRANSFER')) return true;
+  return (t.name || '').toUpperCase().includes('TRANSFER');
+}
 
 async function getTxns(accessToken, start, end) {
   const res = await plaidClient.transactionsGet({
@@ -50,7 +60,15 @@ router.get('/safe-to-spend', async (req, res) => {
   const allocated = template.reduce((s,r) => s + r.amount, 0);
   const discBudget = payAmt - allocated;
 
-  const spending = txns.filter(t => t.date >= payDate && t.amount > 0 && SPENDING_CATS.some(c => (t.category||[]).includes(c)));
+  // Anything that left the paycheck account since payday counts as spending,
+  // except internal transfers to savings (that's the bill money, already
+  // subtracted via discretionaryBudget, not discretionary spending).
+  // Pending debits count too (safer to undercount safe-to-spend than
+  // overcount it while a swipe hasn't posted yet).
+  const spending = txns.filter(t => {
+    if (hasPinnedAccount && t.account_id !== process.env.PAYCHECK_ACCOUNT_ID) return false;
+    return t.date >= payDate && t.amount > 0 && !isTransfer(t);
+  });
   const spent = spending.reduce((s,t) => s + t.amount, 0);
   const safe = discBudget - spent;
 
@@ -61,7 +79,10 @@ router.get('/safe-to-spend', async (req, res) => {
     discretionaryBudget: discBudget,
     totalSpent: spent,
     nextPayday: new Date(new Date(payDate).getTime() + 14*86400000).toISOString().slice(0,10),
-    checklist: template.map(r => ({ category: r.category, amount: r.amount, description: `Transfer $${r.amount} to ${r.category}` }))
+    checklist: template.map(r => ({ category: r.category, amount: r.amount, description: `Transfer $${r.amount} to ${r.category}` })),
+    spending: spending
+      .sort((a,b) => new Date(b.date) - new Date(a.date))
+      .map(t => ({ date: t.date, name: t.name, amount: t.amount, pending: !!t.pending }))
   });
 });
 

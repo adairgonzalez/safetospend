@@ -86,6 +86,20 @@ export default function Dashboard({ token, onLogout }) {
         ))}
       </div>
 
+      {data.spending?.length > 0 && (
+        <div className="card">
+          <h3 className="section-title">Spending since payday</h3>
+          {data.spending.map((t, i) => (
+            <div className="row" key={i}>
+              <span>{t.name}{t.pending && <span className="chip neutral" style={{marginLeft:8}}>pending</span>}
+                <div className="muted" style={{fontSize:12, marginTop:2}}>{t.date}</div>
+              </span>
+              <span className="row-amount">{usd(t.amount)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <VerificationPanel token={token} />
 
       <div className="link-row">

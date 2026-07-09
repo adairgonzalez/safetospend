@@ -11,7 +11,14 @@ export default function Dashboard({ token, onLogout }) {
   }, [token]);
 
   if (!data) return <div>Loading...</div>;
-  if (data.error) return <div>{data.error} <PlaidLink token={token} /></div>;
+  if (data.error) return (
+    <div>
+      <p>{data.error}</p>
+      {data.noBank
+        ? <PlaidLink token={token} />
+        : <button onClick={() => window.location.reload()} style={{padding:10}}>Refresh</button>}
+    </div>
+  );
 
   const color = data.safeToSpend < 0 ? 'red' : data.safeToSpend < 50 ? 'orange' : 'lightgreen';
   return (

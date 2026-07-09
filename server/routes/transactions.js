@@ -16,13 +16,20 @@ async function getTxns(accessToken, start, end) {
 
 router.get('/safe-to-spend', async (req, res) => {
   const user = db.prepare('SELECT plaid_access_token FROM users WHERE id=?').get(req.user.userId);
-  if (!user?.plaid_access_token) return res.json({ error: 'No bank' });
+  if (!user?.plaid_access_token) return res.json({ error: 'No bank', noBank: true });
   const accessToken = user.plaid_access_token;
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth()-2, 1).toISOString().slice(0,10);
   const end = now.toISOString().slice(0,10);
   let txns;
-  try { txns = await getTxns(accessToken, start, end); } catch (e) { return res.status(500).json({ error: e.message }); }
+  try { txns = await getTxns(accessToken, start, end); } catch (e) {
+    const p = e.response?.data;
+    console.error('transactionsGet failed:', p || e.message);
+    if (p?.error_code === 'PRODUCT_NOT_READY') {
+      return res.json({ error: 'Plaid is still importing your transactions (first sync takes a minute or two). Hit refresh shortly.', retryable: true });
+    }
+    return res.status(500).json({ error: p?.error_message || e.message, error_code: p?.error_code });
+  }
 
   const paychecks = txns.filter(t => t.amount > 1000 && t.amount < 5000 && PAYCHECK_KEYWORDS.some(k => t.name.toUpperCase().includes(k)))
     .sort((a,b) => new Date(b.date) - new Date(a.date));

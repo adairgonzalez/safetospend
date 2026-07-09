@@ -49,6 +49,11 @@ async function recordBaselines() {
 
 async function tick(sendReminder) {
   try {
+    // Ask Plaid to pull fresh data from the bank before reading it, so
+    // spending shows up without the user having to open the app and tap
+    // Refresh. This costs a Plaid API call each run, hence every 30 min
+    // rather than something tighter.
+    await api('/transactions/force-refresh', 'POST').catch(() => {});
     const data = await api('/transactions/safe-to-spend');
     if (!data || data.error) return;
     const payDate = data.paycheckDate;

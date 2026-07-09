@@ -2,19 +2,7 @@ const express = require('express');
 const router = express.Router();
 const plaidClient = require('../plaidClient');
 const db = require('../db');
-
-const PAYCHECK_KEYWORDS = ['PAYROLL','DIRECT DEP','DEPOSIT'];
-
-// True for internal transfers (e.g. the bill money moving to savings), which
-// are already accounted for via discretionaryBudget and must not also be
-// subtracted as spending.
-function isTransfer(t) {
-  const pfc = t.personal_finance_category?.primary || '';
-  if (pfc === 'TRANSFER_IN' || pfc === 'TRANSFER_OUT') return true;
-  const legacy = (t.category || []).join(' ').toUpperCase();
-  if (legacy.includes('TRANSFER')) return true;
-  return (t.name || '').toUpperCase().includes('TRANSFER');
-}
+const { isTransfer, detectPaycheck } = require('../paycheck');
 
 async function getTxns(accessToken, start, end) {
   const res = await plaidClient.transactionsGet({
@@ -41,20 +29,9 @@ router.get('/safe-to-spend', async (req, res) => {
     return res.status(500).json({ error: p?.error_message || e.message, error_code: p?.error_code });
   }
 
-  // Plaid amounts: positive = money out, negative = money in. Paychecks are negative.
-  // A pinned account is a strong enough signal on its own (employer names rarely
-  // contain PAYROLL/DEPOSIT); only fall back to the keyword list when no
-  // account is pinned, where amount range alone would be too loose.
+  const paycheck = detectPaycheck(txns);
+  if (!paycheck) return res.json({ error: 'No paycheck found yet', retryable: true });
   const hasPinnedAccount = process.env.PAYCHECK_ACCOUNT_ID && process.env.PAYCHECK_ACCOUNT_ID !== 'placeholder';
-  const paychecks = txns.filter(t => {
-    if (hasPinnedAccount && t.account_id !== process.env.PAYCHECK_ACCOUNT_ID) return false;
-    const deposit = -t.amount;
-    if (!(deposit > 1000 && deposit < 5000)) return false;
-    return hasPinnedAccount || PAYCHECK_KEYWORDS.some(k => (t.name || '').toUpperCase().includes(k));
-  }).sort((a,b) => new Date(b.date) - new Date(a.date));
-  if (!paychecks.length) return res.json({ error: 'No paycheck found yet', retryable: true });
-
-  const paycheck = paychecks[0];
   const payAmt = -paycheck.amount, payDate = paycheck.date;
   const template = db.prepare('SELECT * FROM bills_template').all();
   const allocated = template.reduce((s,r) => s + r.amount, 0);
@@ -160,3 +137,4 @@ router.post('/force-refresh', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.getTxns = getTxns;

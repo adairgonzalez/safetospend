@@ -30,9 +30,10 @@ async function api(path, method = 'GET') {
 }
 
 // On a new paycheck, snapshot savings balances before the user transfers,
-// so verification measures the increase from payday onward even if money
-// was paid out of savings during the previous cycle.
-async function recordBaselines() {
+// tagged to this specific pay_date. This baseline never moves again once
+// set, so verification later in the cycle isn't thrown off by money
+// leaving savings to actually pay a bill (see verify.js).
+async function recordBaselines(payDate) {
   const user = db.prepare('SELECT plaid_access_token FROM users WHERE id=1').get();
   if (!user?.plaid_access_token) return;
   const accts = (await plaidClient.accountsGet({ access_token: user.plaid_access_token })).data.accounts;
@@ -40,10 +41,10 @@ async function recordBaselines() {
     process.env.SAVINGS_RENT_ID, process.env.SAVINGS_CAR_INSURANCE_ID,
     process.env.SAVINGS_CC_MIN_ID, process.env.SAVINGS_DEBT_EXTRA_ID,
   ].filter(id => id && id !== 'placeholder'));
-  const upsert = db.prepare("INSERT OR REPLACE INTO savings_balances (user_id, account_id, last_balance, updated_at) VALUES (1,?,?,datetime('now'))");
+  const insert = db.prepare('INSERT OR IGNORE INTO cycle_baselines (user_id, account_id, pay_date, baseline) VALUES (1,?,?,?)');
   for (const id of ids) {
     const acct = accts.find(a => a.account_id === id);
-    if (acct) upsert.run(id, acct.balances.current);
+    if (acct) insert.run(id, payDate, acct.balances.current);
   }
 }
 
@@ -62,7 +63,7 @@ async function tick({ forceRefresh = true, sendReminder = false } = {}) {
     const transferTotal = data.paycheckAmount - data.discretionaryBudget;
 
     if (getState('notified_paycheck') !== payDate) {
-      await recordBaselines();
+      await recordBaselines(payDate);
       await notify('Paycheck landed 💰',
         `${usd(data.paycheckAmount)} hit checking on ${payDate}. Transfer ${usd(transferTotal)} to savings. Safe to spend: ${usd(data.safeToSpend)}.`,
         'high');

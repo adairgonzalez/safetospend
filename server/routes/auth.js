@@ -12,7 +12,9 @@ function authMiddleware(req, res, next) {
 }
 
 router.post('/register', async (req, res) => {
-  const { username, password } = req.body;
+  const username = (req.body.username || '').trim();
+  const { password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   const hash = await bcrypt.hash(password, 10);
   try {
     db.prepare('INSERT INTO users (username, password_hash) VALUES (?,?)').run(username, hash);
@@ -23,9 +25,10 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-  if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Invalid' });
+  const username = (req.body.username || '').trim();
+  const { password } = req.body;
+  const user = db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').get(username);
+  if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Invalid username or password' });
   res.json({ token: jwt.sign({ userId: user.id }, JWT_SECRET) });
 });
 

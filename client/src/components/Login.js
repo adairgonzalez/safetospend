@@ -26,7 +26,7 @@ export default function Login({ onLogin }) {
         <p className="sub">{isRegister ? 'One account, zero willpower required.' : 'Log in to see what you can spend.'}</p>
         {error && <p className="error-text">{error}</p>}
         <form onSubmit={handle}>
-          <div className="field"><input placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} /></div>
+          <div className="field"><input placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" /></div>
           <div className="field"><input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} /></div>
           <button type="submit" className="btn btn-block">{isRegister ? 'Register' : 'Log in'}</button>
         </form>

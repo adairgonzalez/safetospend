@@ -62,15 +62,23 @@ router.get('/safe-to-spend', async (req, res) => {
 
   // Anything that left the paycheck account since payday counts as spending,
   // except internal transfers to savings (that's the bill money, already
-  // subtracted via discretionaryBudget, not discretionary spending).
+  // subtracted via discretionaryBudget, not discretionary spending) and
+  // anything flagged reimbursable (money that's coming back, so it never
+  // really left the budget even though it left the account).
   // Pending debits count too (safer to undercount safe-to-spend than
   // overcount it while a swipe hasn't posted yet).
-  const spending = txns.filter(t => {
+  const reimbursableIds = new Set(
+    db.prepare('SELECT transaction_id FROM reimbursements WHERE user_id=?').all(req.user.userId).map(r => r.transaction_id)
+  );
+  const debitsSincePayday = txns.filter(t => {
     if (hasPinnedAccount && t.account_id !== process.env.PAYCHECK_ACCOUNT_ID) return false;
     return t.date >= payDate && t.amount > 0 && !isTransfer(t);
   });
+  const spending = debitsSincePayday.filter(t => !reimbursableIds.has(t.transaction_id));
   const spent = spending.reduce((s,t) => s + t.amount, 0);
   const safe = discBudget - spent;
+
+  const reimbursements = db.prepare('SELECT transaction_id, name, amount, date, received FROM reimbursements WHERE user_id=? ORDER BY flagged_at DESC').all(req.user.userId);
 
   res.json({
     safeToSpend: Math.round(safe*100)/100,
@@ -82,8 +90,37 @@ router.get('/safe-to-spend', async (req, res) => {
     checklist: template.map(r => ({ category: r.category, amount: r.amount, description: `Transfer $${r.amount} to ${r.category}` })),
     spending: spending
       .sort((a,b) => new Date(b.date) - new Date(a.date))
-      .map(t => ({ date: t.date, name: t.name, amount: t.amount, pending: !!t.pending }))
+      .map(t => ({ transaction_id: t.transaction_id, date: t.date, name: t.name, amount: t.amount, pending: !!t.pending })),
+    reimbursements
   });
+});
+
+// Excludes a specific charge from spending because it'll be paid back
+// (e.g. an HSA/wellness benefit reimbursement) - the money left the
+// account but isn't really gone from the budget.
+router.post('/flag-reimbursable', (req, res) => {
+  const { transaction_id, name, amount, date } = req.body;
+  if (!transaction_id || typeof amount !== 'number') return res.status(400).json({ error: 'transaction_id and amount required' });
+  try {
+    db.prepare('INSERT INTO reimbursements (user_id, transaction_id, name, amount, date) VALUES (?,?,?,?,?)')
+      .run(req.user.userId, transaction_id, name || '', amount, date || '');
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ error: 'Already flagged as reimbursable' });
+  }
+});
+
+router.post('/unflag-reimbursable', (req, res) => {
+  const { transaction_id } = req.body;
+  db.prepare('DELETE FROM reimbursements WHERE user_id=? AND transaction_id=?').run(req.user.userId, transaction_id);
+  res.json({ success: true });
+});
+
+router.post('/mark-reimbursed', (req, res) => {
+  const { transaction_id } = req.body;
+  db.prepare("UPDATE reimbursements SET received=1, received_at=datetime('now') WHERE user_id=? AND transaction_id=?")
+    .run(req.user.userId, transaction_id);
+  res.json({ success: true });
 });
 
 // Temporary diagnostic: dump raw recent transactions so paycheck-detection
@@ -98,7 +135,7 @@ router.get('/debug', async (req, res) => {
     const txns = await getTxns(user.plaid_access_token, start, end);
     res.json(txns
       .sort((a,b) => new Date(b.date) - new Date(a.date))
-      .map(t => ({ date: t.date, name: t.name, amount: t.amount, account_id: t.account_id, pending: t.pending })));
+      .map(t => ({ transaction_id: t.transaction_id, date: t.date, name: t.name, amount: t.amount, account_id: t.account_id, pending: t.pending })));
   } catch (e) {
     const p = e.response?.data;
     res.status(500).json({ error: p?.error_message || e.message, error_code: p?.error_code });

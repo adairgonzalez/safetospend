@@ -18,6 +18,18 @@ export default function Dashboard({ token, onLogout }) {
   }, [token]);
   useEffect(() => { load(); }, [load]);
 
+  const callAndReload = (path, body) => {
+    fetch(path, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(r => r.json())
+      .then(d => { if (!d.error) load(); })
+      .catch(() => {});
+  };
+  const flagReimbursable = (t) => callAndReload('/api/transactions/flag-reimbursable', {
+    transaction_id: t.transaction_id, name: t.name, amount: t.amount, date: t.date,
+  });
+  const unflagReimbursable = (transaction_id) => callAndReload('/api/transactions/unflag-reimbursable', { transaction_id });
+  const markReimbursed = (transaction_id) => callAndReload('/api/transactions/mark-reimbursed', { transaction_id });
+
   const forceRefresh = () => {
     setRefreshing(true);
     setRefreshMsg(null);
@@ -106,11 +118,35 @@ export default function Dashboard({ token, onLogout }) {
         <div className="card">
           <h3 className="section-title">Spending since payday</h3>
           {data.spending.map((t, i) => (
-            <div className="row" key={i}>
+            <div className="row" key={i} style={{alignItems:'flex-start'}}>
               <span>{t.name}{t.pending && <span className="chip neutral" style={{marginLeft:8}}>pending</span>}
                 <div className="muted" style={{fontSize:12, marginTop:2}}>{t.date}</div>
+                <button className="quiet" style={{fontSize:12, marginTop:4}} onClick={() => flagReimbursable(t)}>
+                  Mark reimbursable
+                </button>
               </span>
               <span className="row-amount">{usd(t.amount)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {data.reimbursements?.length > 0 && (
+        <div className="card">
+          <h3 className="section-title">Reimbursements</h3>
+          {data.reimbursements.map((r, i) => (
+            <div className="row" key={i} style={{alignItems:'flex-start'}}>
+              <span>{r.name}
+                <div className="muted" style={{fontSize:12, marginTop:2}}>{r.date}</div>
+                <div style={{marginTop:4, display:'flex', gap:12}}>
+                  {!r.received && <button className="quiet" style={{fontSize:12}} onClick={() => markReimbursed(r.transaction_id)}>Mark received</button>}
+                  <button className="quiet" style={{fontSize:12}} onClick={() => unflagReimbursable(r.transaction_id)}>Unflag</button>
+                </div>
+              </span>
+              <span style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6}}>
+                <span className="row-amount">{usd(r.amount)}</span>
+                <span className={`chip ${r.received ? 'ok' : 'neutral'}`}>{r.received ? 'received' : 'pending'}</span>
+              </span>
             </div>
           ))}
         </div>

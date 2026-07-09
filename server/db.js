@@ -8,4 +8,13 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS savings_balances (user_id INTEGER, account_id TEXT UNIQUE, last_balance REAL, updated_at TEXT);
   CREATE TABLE IF NOT EXISTS transactions_cache (id INTEGER PRIMARY KEY AUTOINCREMENT, pay_period_start TEXT, safe_to_spend REAL, total_spent REAL, created_at TEXT);
 `);
+
+if (db.prepare('SELECT COUNT(*) AS c FROM bills_template').get().c === 0) {
+  const ins = db.prepare('INSERT INTO bills_template (category, amount) VALUES (?,?)');
+  for (const [category, amount] of [
+    ['Rent', 718], ['Tesla', 430], ['Insurance', 115], ['Electricity', 51],
+    ['Credit Card Minimums', 475], ['Extra Debt Payment', 750],
+  ]) ins.run(category, amount);
+}
+
 module.exports = db;

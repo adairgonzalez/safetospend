@@ -39,7 +39,9 @@ while true; do
   REMOTE=$(git rev-parse "origin/$BRANCH" 2>/dev/null) || continue
   [ "$LOCAL" = "$REMOTE" ] && continue
   echo "New commits on $BRANCH — deploying..."
-  git pull --rebase --quiet origin "$BRANCH" || { echo "git pull failed; will retry"; continue; }
+  # The checkout is a deploy target, not a workspace: local edits lose.
+  git diff --quiet || echo "warning: discarding local changes in $(pwd)"
+  git reset --hard "origin/$BRANCH" --quiet || { echo "git reset failed; will retry"; continue; }
   if install_and_build; then
     stop_server
     start_server

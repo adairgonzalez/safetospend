@@ -31,12 +31,20 @@ export default function Dashboard({ token, onLogout }) {
       .catch(() => setRefreshing(false));
   };
 
-  const shell = (children) => (
+  const shell = (children, showRefresh) => (
     <div className="container">
       <div className="topbar">
         <div className="brand"><span className="brand-dot" />Safe to Spend</div>
-        <button onClick={onLogout} className="btn btn-ghost btn-sm">Log out</button>
+        <div style={{display:'flex', gap:8}}>
+          {showRefresh && (
+            <button onClick={forceRefresh} disabled={refreshing} className="btn btn-ghost btn-sm">
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
+          )}
+          <button onClick={onLogout} className="btn btn-ghost btn-sm">Log out</button>
+        </div>
       </div>
+      {refreshMsg && <p className="muted center" style={{marginTop:-16, marginBottom:16, fontSize:13}}>{refreshMsg}</p>}
       {children}
     </div>
   );
@@ -52,12 +60,11 @@ export default function Dashboard({ token, onLogout }) {
         : (
           <>
             <button className="btn" onClick={forceRefresh} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh from bank'}</button>
-            {refreshMsg && <p className="muted" style={{marginTop:10, fontSize:13}}>{refreshMsg}</p>}
             <div className="link-row" style={{marginTop:14}}><Link to="/debug" className="quiet">View raw transactions</Link></div>
           </>
         )}
     </div>
-  );
+  , !data.noBank);
 
   const tone = data.safeToSpend < 0 ? 'bad' : data.safeToSpend < 50 ? 'warn' : 'good';
   const daysLeft = Math.max(0, Math.ceil((new Date(data.nextPayday) - new Date()) / 86400000));
@@ -104,7 +111,9 @@ export default function Dashboard({ token, onLogout }) {
 
       <div className="link-row">
         <Link to="/template" className="quiet">Edit bill template</Link>
+        {' · '}
+        <Link to="/debug" className="quiet">Raw transactions</Link>
       </div>
     </>
-  );
+  , true);
 }

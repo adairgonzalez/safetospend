@@ -34,11 +34,11 @@ export default function PlaidLink({ token }) {
     if (isOAuthRedirect && ready) open();
   }, [isOAuthRedirect, ready, open]);
 
-  if (isOAuthRedirect) return <div>Finishing bank connection...</div>;
+  if (isOAuthRedirect) return <div className="empty"><p className="muted">Finishing bank connection…</p></div>;
   return (
-    <span>
-      <button onClick={() => open()} disabled={!ready} style={{padding:10,margin:10}}>Link Bank Account</button>
-      {error && <span style={{color:'salmon'}}>{error}</span>}
-    </span>
+    <div>
+      <button className="btn" onClick={() => open()} disabled={!ready}>Link bank account</button>
+      {error && <p className="error-text">{error}</p>}
+    </div>
   );
 }

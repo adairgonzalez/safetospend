@@ -15,7 +15,7 @@ export default function BillTemplateForm({ token }) {
   const navigate = useNavigate();
   useEffect(() => {
     fetch('/api/template', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(data => { if (data.length) setCategories(data); });
+      .then(r => r.json()).then(data => { if (Array.isArray(data) && data.length) setCategories(data); });
   }, [token]);
 
   const save = () => {
@@ -23,17 +23,28 @@ export default function BillTemplateForm({ token }) {
       .then(() => navigate('/dashboard'));
   };
 
+  const total = categories.reduce((s, c) => s + (c.amount || 0), 0);
+
   return (
-    <div style={{maxWidth:400,margin:'20px auto'}}>
-      <h2>Bill Template</h2>
-      {categories.map((c,i) => (
-        <div key={i} style={{marginBottom:8}}>
-          <input value={c.category} onChange={e => { const n = [...categories]; n[i].category = e.target.value; setCategories(n); }} style={{width:'50%',padding:5}} />
-          <input type="number" value={c.amount} onChange={e => { const n = [...categories]; n[i].amount = parseFloat(e.target.value)||0; setCategories(n); }} style={{width:'40%',padding:5}} />
+    <div className="container" style={{maxWidth:480}}>
+      <div className="topbar">
+        <div className="brand"><span className="brand-dot" />Bill template</div>
+        <button className="btn btn-ghost btn-sm" onClick={() => navigate('/dashboard')}>Back</button>
+      </div>
+      <div className="card">
+        <h3 className="section-title">Per paycheck</h3>
+        {categories.map((c, i) => (
+          <div key={i} style={{display:'flex', gap:10, marginBottom:10}}>
+            <input value={c.category} onChange={e => { const n = [...categories]; n[i] = {...n[i], category: e.target.value}; setCategories(n); }} />
+            <input type="number" style={{maxWidth:120}} value={c.amount} onChange={e => { const n = [...categories]; n[i] = {...n[i], amount: parseFloat(e.target.value)||0}; setCategories(n); }} />
+          </div>
+        ))}
+        <div className="row" style={{marginTop:6}}>
+          <span className="muted">Total set aside</span>
+          <span className="row-amount">{total.toLocaleString('en-US',{style:'currency',currency:'USD'})}</span>
         </div>
-      ))}
-      <button onClick={save} style={{padding:10,width:'100%'}}>Save</button>
-      <button onClick={() => navigate('/dashboard')} style={{marginTop:5,background:'none',color:'white'}}>Back</button>
+        <button className="btn btn-block" style={{marginTop:16}} onClick={save}>Save</button>
+      </div>
     </div>
   );
 }

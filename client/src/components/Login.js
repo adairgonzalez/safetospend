@@ -19,15 +19,23 @@ export default function Login({ onLogin }) {
     }
   };
   return (
-    <form onSubmit={handle} style={{maxWidth:300,margin:'100px auto'}}>
-      <h2>{isRegister?'Register':'Login'}</h2>
-      {error && <p style={{color:'salmon'}}>{error}</p>}
-      <input placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} style={{width:'100%',padding:10,marginBottom:10}} />
-      <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} style={{width:'100%',padding:10,marginBottom:10}} />
-      <button type="submit" style={{width:'100%',padding:10}}>{isRegister?'Register':'Login'}</button>
-      <button type="button" onClick={()=>setIsRegister(!isRegister)} style={{marginTop:10,background:'none',border:'none',color:'#aaa'}}>
-        {isRegister ? 'Have an account? Login' : 'Create account'}
-      </button>
-    </form>
+    <div className="auth">
+      <div className="brand" style={{marginBottom:24}}><span className="brand-dot" />Safe to Spend</div>
+      <div className="card">
+        <h1>{isRegister ? 'Create account' : 'Welcome back'}</h1>
+        <p className="sub">{isRegister ? 'One account, zero willpower required.' : 'Log in to see what you can spend.'}</p>
+        {error && <p className="error-text">{error}</p>}
+        <form onSubmit={handle}>
+          <div className="field"><input placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} /></div>
+          <div className="field"><input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} /></div>
+          <button type="submit" className="btn btn-block">{isRegister ? 'Register' : 'Log in'}</button>
+        </form>
+        <div className="link-row" style={{marginTop:16}}>
+          <button type="button" className="quiet" onClick={()=>setIsRegister(!isRegister)}>
+            {isRegister ? 'Have an account? Log in' : "New here? Create an account"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

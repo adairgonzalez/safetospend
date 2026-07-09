@@ -1,43 +1,73 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PlaidLink from './PlaidLink';
 import VerificationPanel from './VerificationPanel';
 
+const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
 export default function Dashboard({ token, onLogout }) {
   const [data, setData] = useState(null);
-  useEffect(() => {
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(() => {
+    setLoading(true);
     fetch('/api/transactions/safe-to-spend', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setData);
+      .then(r => r.json()).then(d => { setData(d); setLoading(false); })
+      .catch(e => { setData({ error: `Could not reach server: ${e.message}` }); setLoading(false); });
   }, [token]);
+  useEffect(() => { load(); }, [load]);
 
-  if (!data) return <div>Loading...</div>;
-  if (data.error) return (
-    <div>
-      <p>{data.error}</p>
-      {data.noBank
-        ? <PlaidLink token={token} />
-        : <button onClick={() => window.location.reload()} style={{padding:10}}>Refresh</button>}
+  const shell = (children) => (
+    <div className="container">
+      <div className="topbar">
+        <div className="brand"><span className="brand-dot" />Safe to Spend</div>
+        <button onClick={onLogout} className="btn btn-ghost btn-sm">Log out</button>
+      </div>
+      {children}
     </div>
   );
 
-  const color = data.safeToSpend < 0 ? 'red' : data.safeToSpend < 50 ? 'orange' : 'lightgreen';
-  return (
-    <div style={{maxWidth:600,margin:'0 auto'}}>
-      <div style={{display:'flex',justifyContent:'space-between'}}>
-        <h2>Safe to Spend</h2>
-        <button onClick={onLogout} style={{background:'none',color:'white',border:'1px solid white',padding:5}}>Logout</button>
-      </div>
-      <div style={{textAlign:'center',fontSize:'4rem',color}}>${data.safeToSpend?.toFixed(2)}</div>
-      <p>Paycheck: ${data.paycheckAmount} on {data.paycheckDate}</p>
-      <p>Next payday: {data.nextPayday} (in {Math.ceil((new Date(data.nextPayday)-new Date())/(1000*60*60*24))} days)</p>
-      <div style={{background:'#2a2a2a',padding:10,borderRadius:5,marginTop:15}}>
-        <h3>Transfers Checklist</h3>
-        {data.checklist?.map((c,i)=><div key={i}>💰 {c.description}</div>)}
-      </div>
-      <VerificationPanel token={token} />
-      <div style={{marginTop:20}}>
-        <Link to="/template" style={{color:'#aaa'}}>Edit Bill Template</Link>
-      </div>
+  if (loading) return shell(<div className="empty"><p className="muted">Loading your money…</p></div>);
+
+  if (data?.error) return shell(
+    <div className="card empty">
+      <h2>{data.noBank ? 'Connect your bank' : 'Nothing to show yet'}</h2>
+      <p>{data.noBank ? 'Link your Capital One account to start tracking.' : data.error}</p>
+      {data.noBank ? <PlaidLink token={token} /> : <button className="btn" onClick={load}>Refresh</button>}
     </div>
+  );
+
+  const tone = data.safeToSpend < 0 ? 'bad' : data.safeToSpend < 50 ? 'warn' : 'good';
+  const daysLeft = Math.max(0, Math.ceil((new Date(data.nextPayday) - new Date()) / 86400000));
+
+  return shell(
+    <>
+      <div className="card hero">
+        <div className="hero-label">Safe to spend</div>
+        <div className={`hero-amount ${tone}`}>{usd(data.safeToSpend)}</div>
+        <div className="hero-sub">until {data.nextPayday} · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</div>
+      </div>
+
+      <div className="stats">
+        <div className="stat"><div className="stat-label">Paycheck ({data.paycheckDate})</div><div className="stat-value">{usd(data.paycheckAmount)}</div></div>
+        <div className="stat"><div className="stat-label">Set aside for bills</div><div className="stat-value">{usd(data.paycheckAmount - data.discretionaryBudget)}</div></div>
+        <div className="stat"><div className="stat-label">Spent so far</div><div className="stat-value">{usd(data.totalSpent)}</div></div>
+      </div>
+
+      <div className="card">
+        <h3 className="section-title">Transfer checklist</h3>
+        {data.checklist?.map((c, i) => (
+          <div className="row" key={i}>
+            <span>{c.category}</span>
+            <span className="row-amount">{usd(c.amount)}</span>
+          </div>
+        ))}
+      </div>
+
+      <VerificationPanel token={token} />
+
+      <div className="link-row">
+        <Link to="/template" className="quiet">Edit bill template</Link>
+      </div>
+    </>
   );
 }

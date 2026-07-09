@@ -60,4 +60,23 @@ router.get('/safe-to-spend', async (req, res) => {
   });
 });
 
+// Temporary diagnostic: dump raw recent transactions so paycheck-detection
+// mismatches (name, amount, account, date) can be seen instead of guessed at.
+router.get('/debug', async (req, res) => {
+  const user = db.prepare('SELECT plaid_access_token FROM users WHERE id=?').get(req.user.userId);
+  if (!user?.plaid_access_token) return res.json({ error: 'No bank' });
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth()-2, 1).toISOString().slice(0,10);
+  const end = now.toISOString().slice(0,10);
+  try {
+    const txns = await getTxns(user.plaid_access_token, start, end);
+    res.json(txns
+      .sort((a,b) => new Date(b.date) - new Date(a.date))
+      .map(t => ({ date: t.date, name: t.name, amount: t.amount, account_id: t.account_id, pending: t.pending })));
+  } catch (e) {
+    const p = e.response?.data;
+    res.status(500).json({ error: p?.error_message || e.message, error_code: p?.error_code });
+  }
+});
+
 module.exports = router;

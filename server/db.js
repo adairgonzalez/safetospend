@@ -10,7 +10,18 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS reimbursements (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, transaction_id TEXT UNIQUE, name TEXT, amount REAL, date TEXT, received INTEGER DEFAULT 0, flagged_at TEXT DEFAULT (datetime('now')), received_at TEXT);
   CREATE TABLE IF NOT EXISTS cycle_baselines (user_id INTEGER, account_id TEXT, pay_date TEXT, baseline REAL, PRIMARY KEY (user_id, account_id, pay_date));
   CREATE TABLE IF NOT EXISTS verified_transfers (user_id INTEGER, pay_date TEXT, account_id TEXT, verified_at TEXT, PRIMARY KEY (user_id, pay_date, account_id));
+  CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY, applied_at TEXT DEFAULT (datetime('now')));
 `);
+
+// One-time fixup: an earlier version of the cycle_baselines migration logic
+// carried forward the old ratcheting system's already-corrupted value as a
+// numeric baseline instead of treating it as proof-of-completion. Wipe the
+// (still very new, not-yet-relied-on) rows it wrote so the corrected logic
+// in verify.js gets a clean slate on next use. Runs at most once.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('reset_cycle_baselines_v1')) {
+  db.exec('DELETE FROM cycle_baselines; DELETE FROM verified_transfers;');
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('reset_cycle_baselines_v1');
+}
 
 if (db.prepare('SELECT COUNT(*) AS c FROM bills_template').get().c === 0) {
   const ins = db.prepare('INSERT INTO bills_template (category, amount) VALUES (?,?)');

@@ -79,20 +79,22 @@ router.post('/verify-transfers', async (req, res) => {
 
     let baselineRow = getBaseline.get(req.user.userId, acctId, payDate);
     if (!baselineRow) {
-      // One-time migration: carry forward the old ratcheting system's last
-      // known balance as this cycle's baseline, instead of snapshotting the
-      // current (already-post-transfer) balance, which would demand another
-      // full transfer to ever show as confirmed. Only applies the very
-      // first time this account is seen under the new system.
-      const legacy = !hasAnyBaseline.get(req.user.userId, acctId) ? getLegacyBalance.get(acctId) : null;
-      if (legacy) {
-        setBaseline.run(req.user.userId, acctId, payDate, legacy.last_balance);
-        baselineRow = { baseline: legacy.last_balance };
-      } else {
-        setBaseline.run(req.user.userId, acctId, payDate, curBalance);
-        details.push({ category: label, status: `Baseline recorded at $${curBalance.toFixed(2)} for this pay cycle — verify again after transferring` });
+      // One-time migration from the old ratcheting system. Its stored value
+      // is NOT trustworthy as a numeric baseline - the ratchet bug itself
+      // may have already advanced it past the true pre-transfer figure. But
+      // the row only ever got written after a successful verify, so its
+      // mere existence proves this cycle's transfer already happened.
+      // Trust that fact, mark it confirmed now, and start a clean baseline
+      // (today's real balance) for every cycle from here on.
+      const migrating = !hasAnyBaseline.get(req.user.userId, acctId) && getLegacyBalance.get(acctId);
+      setBaseline.run(req.user.userId, acctId, payDate, curBalance);
+      if (migrating) {
+        setVerified.run(req.user.userId, payDate, acctId);
+        details.push({ category: label, status: 'Transferred' });
         continue;
       }
+      details.push({ category: label, status: `Baseline recorded at $${curBalance.toFixed(2)} for this pay cycle — verify again after transferring` });
+      continue;
     }
 
     const expected = baselineRow.baseline + exp.amount;

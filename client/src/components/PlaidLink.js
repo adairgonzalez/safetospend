@@ -5,11 +5,17 @@ export default function PlaidLink({ token }) {
   // Returning from a bank's OAuth page (e.g. Capital One): resume the same Link session
   const isOAuthRedirect = window.location.href.includes('oauth_state_id=');
   const [linkToken, setLinkToken] = useState(isOAuthRedirect ? localStorage.getItem('link_token') : null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (isOAuthRedirect) return;
     fetch('/api/plaid/create_link_token', { method:'POST', headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'} })
-      .then(r => r.json()).then(d => { localStorage.setItem('link_token', d.link_token); setLinkToken(d.link_token); });
+      .then(r => r.json())
+      .then(d => {
+        if (d.link_token) { localStorage.setItem('link_token', d.link_token); setLinkToken(d.link_token); }
+        else setError(d.error ? `Plaid error${d.error_code ? ` (${d.error_code})` : ''}: ${d.error}` : 'Could not get link token from server');
+      })
+      .catch(e => setError(`Could not reach server: ${e.message}`));
   }, [token, isOAuthRedirect]);
 
   const config = {
@@ -29,5 +35,10 @@ export default function PlaidLink({ token }) {
   }, [isOAuthRedirect, ready, open]);
 
   if (isOAuthRedirect) return <div>Finishing bank connection...</div>;
-  return <button onClick={() => open()} disabled={!ready} style={{padding:10,margin:10}}>Link Bank Account</button>;
+  return (
+    <span>
+      <button onClick={() => open()} disabled={!ready} style={{padding:10,margin:10}}>Link Bank Account</button>
+      {error && <span style={{color:'salmon'}}>{error}</span>}
+    </span>
+  );
 }

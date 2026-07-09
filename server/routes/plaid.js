@@ -11,8 +11,14 @@ router.post('/create_link_token', async (req, res) => {
     country_codes: ['US'], language: 'en',
   };
   if (process.env.PLAID_REDIRECT_URI) request.redirect_uri = process.env.PLAID_REDIRECT_URI;
-  const response = await plaidClient.linkTokenCreate(request);
-  res.json({ link_token: response.data.link_token });
+  try {
+    const response = await plaidClient.linkTokenCreate(request);
+    res.json({ link_token: response.data.link_token });
+  } catch (e) {
+    const plaidErr = e.response?.data;
+    console.error('linkTokenCreate failed:', plaidErr || e.message);
+    res.status(500).json({ error: plaidErr?.error_message || e.message, error_code: plaidErr?.error_code });
+  }
 });
 
 router.post('/exchange_public_token', async (req, res) => {

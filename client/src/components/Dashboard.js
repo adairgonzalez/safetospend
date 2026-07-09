@@ -33,6 +33,7 @@ export default function Dashboard({ token, onLogout }) {
       <h2>{data.noBank ? 'Connect your bank' : 'Nothing to show yet'}</h2>
       <p>{data.noBank ? 'Link your Capital One account to start tracking.' : data.error}</p>
       {data.noBank ? <PlaidLink token={token} /> : <button className="btn" onClick={load}>Refresh</button>}
+      {!data.noBank && <div className="link-row" style={{marginTop:14}}><Link to="/debug" className="quiet">View raw transactions</Link></div>}
     </div>
   );
 

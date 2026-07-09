@@ -2,6 +2,7 @@ require('dotenv').config({ path: '../.env' });
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const authRoutes = require('./routes/auth');
 const plaidRoutes = require('./routes/plaid');
 const templateRoutes = require('./routes/template');
@@ -17,9 +18,11 @@ app.use('/api/plaid', authMiddleware, plaidRoutes);
 app.use('/api/template', authMiddleware, templateRoutes);
 app.use('/api/transactions', authMiddleware, transactionsRoutes);
 app.use('/api/verify', authMiddleware, verifyRoutes);
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
-  app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../client/build', 'index.html')));
+const buildDir = path.join(__dirname, '../client/build');
+if (fs.existsSync(buildDir)) {
+  app.use(express.static(buildDir));
+  app.get('*', (req, res) => res.sendFile(path.join(buildDir, 'index.html')));
 }
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => console.log(`Server on ${PORT}`));
+app.listen(PORT, () => console.log(`Server on ${PORT}${fs.existsSync(buildDir) ? ' (serving app for phones on the local network too)' : ''}`));
+require('./scheduler');

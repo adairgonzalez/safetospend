@@ -1,0 +1,11 @@
+{
+  "short_name": "Safe to Spend",
+  "name": "Safe to Spend",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "theme_color": "#0b0d12",
+  "background_color": "#0b0d12"
+}

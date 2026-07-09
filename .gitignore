@@ -2,3 +2,4 @@ node_modules/
 client/build/
 server/safe-to-spend.db
 server/safe-to-spend.db-*
+.env

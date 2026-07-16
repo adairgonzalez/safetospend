@@ -34,7 +34,7 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('reset_cycle_baseli
 if (db.prepare('SELECT COUNT(*) AS c FROM bills_template').get().c === 0) {
   const ins = db.prepare('INSERT INTO bills_template (category, amount) VALUES (?,?)');
   for (const [category, amount] of [
-    ['Rent', 718], ['Tesla', 430], ['Insurance', 115], ['Electricity', 51],
+    ['Rent', 718], ['Tesla', 430], ['Insurance', 115], ['Electricity', 90],
     ['Credit Card Minimums', 475], ['Extra Debt Payment', 750],
   ]) ins.run(category, amount);
 }
@@ -47,6 +47,14 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('add_tesla_fsd_bill
     db.prepare('INSERT INTO bills_template (category, amount, match_name) VALUES (?,?,?)').run('Tesla FSD', 100, 'TESLA SUBSCRIPTION');
   }
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('add_tesla_fsd_bill');
+}
+
+// $51 chronically undershot the real bill (Texas summer AC - actual came in
+// at $101.99). $90 leaves a bit of buffer for cooler months rather than
+// just matching the one hot-month data point exactly.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('bump_electricity_budget_v1')) {
+  db.prepare('UPDATE bills_template SET amount=? WHERE category=?').run(90, 'Electricity');
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('bump_electricity_budget_v1');
 }
 
 module.exports = db;

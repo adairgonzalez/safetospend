@@ -90,12 +90,15 @@ async function tick({ forceRefresh = true, sendReminder = false } = {}) {
 }
 
 if (TOPIC) {
-  // Webhooks (see webhook.js) are now the primary sync trigger - instant,
-  // and each one is a free transactionsGet, not a billed refresh. This is
-  // just a safety net in case a webhook is ever missed or Funnel is down.
-  cron.schedule('0 * * * *', () => tick({ forceRefresh: true, sendReminder: false }));
-  cron.schedule('5 10,16,20 * * *', () => tick({ forceRefresh: true, sendReminder: true }));
-  console.log(`Notifications on: ntfy.sh/${TOPIC} (webhook-driven, hourly fallback poll)`);
+  // transactionsRefresh is billed per call in production and the free tier
+  // is already exhausted, so the scheduler no longer pays for it on its own
+  // schedule - it just reads whatever Plaid has (Plaid syncs on its own
+  // regardless), which is free. Webhooks (webhook.js) are the real-time
+  // path once Funnel is set up; the manual "Refresh from bank" button is
+  // still there for an explicit, occasional, user-triggered paid refresh.
+  cron.schedule('0 * * * *', () => tick({ forceRefresh: false, sendReminder: false }));
+  cron.schedule('5 10,16,20 * * *', () => tick({ forceRefresh: false, sendReminder: true }));
+  console.log(`Notifications on: ntfy.sh/${TOPIC} (webhook-driven; hourly fallback poll reads only, no billed refresh)`);
 } else {
   console.log('Notifications off: set NTFY_TOPIC in .env to enable');
 }

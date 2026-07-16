@@ -8,6 +8,7 @@ export default function Insights({ token }) {
   const [data, setData] = useState(null);
   const [verify, setVerify] = useState(null);
   const [history, setHistory] = useState([]);
+  const [billsAccounts, setBillsAccounts] = useState([]);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -17,11 +18,13 @@ export default function Insights({ token }) {
       fetch('/api/transactions/safe-to-spend', { headers }).then(r => r.json()),
       fetch('/api/verify/verify-transfers', { method: 'POST', headers }).then(r => r.json()).catch(() => null),
       fetch('/api/insights/history', { headers }).then(r => r.json()).catch(() => ({ history: [] })),
-    ]).then(([sts, v, h]) => {
+      fetch('/api/insights/bills-account', { headers }).then(r => r.json()).catch(() => ({ accounts: [] })),
+    ]).then(([sts, v, h, b]) => {
       if (sts.error) { setError(sts.error); return; }
       setData(sts);
       setVerify(v);
       setHistory(h.history || []);
+      setBillsAccounts(b.accounts || []);
     }).catch(e => setError(e.message));
   }, [token]);
 
@@ -90,6 +93,13 @@ export default function Insights({ token }) {
       lines.push('Recent past cycles:');
       history.forEach(h => lines.push(`- ${h.pay_date}: paycheck ${usd(h.paycheck_amount)}, spent ${usd(h.total_spent)}, ended with ${usd(h.safe_to_spend)} safe to spend`));
     }
+    billsAccounts.forEach(acct => {
+      lines.push('');
+      lines.push(`${acct.name}${acct.mask ? ` (…${acct.mask})` : ''} — current balance ${usd(acct.balance)}:`);
+      acct.activity.slice(0, 15).forEach(t => {
+        lines.push(`- ${t.date}: ${t.name} ${t.amount >= 0 ? '+' : ''}${usd(t.amount)}${t.isIncomingTransfer ? ' (transfer in)' : ''}`);
+      });
+    });
     lines.push('');
     lines.push('I want financial guidance based on this — ');
     return lines.join('\n');
@@ -151,6 +161,24 @@ export default function Insights({ token }) {
           ))}
         </div>
       )}
+
+      {billsAccounts.map((acct, ai) => (
+        <div className="card" key={ai}>
+          <h3 className="section-title">{acct.name}{acct.mask ? ` · …${acct.mask}` : ''}</h3>
+          <div className="row"><span className="muted">Current balance</span><span className="row-amount">{usd(acct.balance)}</span></div>
+          {acct.activity.length === 0 && <p className="muted" style={{ fontSize: 13 }}>No activity in the last 2 months.</p>}
+          {acct.activity.map((t, i) => (
+            <div className="row" key={i}>
+              <span>{t.name}{t.isIncomingTransfer && <span className="chip neutral" style={{ marginLeft: 8 }}>transfer in</span>}
+                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{t.date}</div>
+              </span>
+              <span className="row-amount" style={{ color: t.amount >= 0 ? 'var(--green)' : 'var(--text)' }}>
+                {t.amount >= 0 ? '+' : ''}{usd(t.amount)}
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
 
       {history.length > 0 && (
         <div className="card">

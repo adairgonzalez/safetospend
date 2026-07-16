@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard';
 import BillTemplateForm from './components/BillTemplateForm';
 import PlaidLink from './components/PlaidLink';
 import TransactionsDebug from './components/TransactionsDebug';
+import Insights from './components/Insights';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
@@ -23,6 +24,7 @@ function App() {
         <Route path="/template" element={token ? <BillTemplateForm token={token} /> : <Navigate to="/" />} />
         <Route path="/oauth-return" element={token ? <PlaidLink token={token} /> : <Navigate to="/" />} />
         <Route path="/debug" element={token ? <TransactionsDebug token={token} /> : <Navigate to="/" />} />
+        <Route path="/insights" element={token ? <Insights token={token} /> : <Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
   );

@@ -155,6 +155,8 @@ export default function Dashboard({ token, onLogout }) {
       <VerificationPanel token={token} />
 
       <div className="link-row">
+        <Link to="/insights" className="quiet">Insights</Link>
+        {' · '}
         <Link to="/template" className="quiet">Edit bill template</Link>
         {' · '}
         <Link to="/debug" className="quiet">Raw transactions</Link>

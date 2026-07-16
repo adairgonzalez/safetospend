@@ -11,6 +11,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS cycle_baselines (user_id INTEGER, account_id TEXT, pay_date TEXT, baseline REAL, PRIMARY KEY (user_id, account_id, pay_date));
   CREATE TABLE IF NOT EXISTS verified_transfers (user_id INTEGER, pay_date TEXT, account_id TEXT, verified_at TEXT, PRIMARY KEY (user_id, pay_date, account_id));
   CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY, applied_at TEXT DEFAULT (datetime('now')));
+  CREATE TABLE IF NOT EXISTS cycle_history (user_id INTEGER, pay_date TEXT, paycheck_amount REAL, discretionary_budget REAL, total_spent REAL, safe_to_spend REAL, updated_at TEXT, PRIMARY KEY (user_id, pay_date));
 `);
 
 // One-time fixup: an earlier version of the cycle_baselines migration logic

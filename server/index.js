@@ -8,6 +8,7 @@ const plaidRoutes = require('./routes/plaid');
 const templateRoutes = require('./routes/template');
 const transactionsRoutes = require('./routes/transactions');
 const verifyRoutes = require('./routes/verify');
+const insightsRoutes = require('./routes/insights');
 const { authMiddleware } = require('./routes/auth');
 
 const app = express();
@@ -18,6 +19,7 @@ app.use('/api/plaid', authMiddleware, plaidRoutes);
 app.use('/api/template', authMiddleware, templateRoutes);
 app.use('/api/transactions', authMiddleware, transactionsRoutes);
 app.use('/api/verify', authMiddleware, verifyRoutes);
+app.use('/api/insights', authMiddleware, insightsRoutes);
 const isQA = process.env.PLAID_ENV !== 'production';
 app.get('/api/meta', (req, res) => res.json({ env: process.env.PLAID_ENV || 'sandbox', qa: isQA }));
 

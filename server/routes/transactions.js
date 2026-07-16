@@ -57,6 +57,15 @@ router.get('/safe-to-spend', async (req, res) => {
 
   const reimbursements = db.prepare('SELECT transaction_id, name, amount, date, received FROM reimbursements WHERE user_id=? ORDER BY flagged_at DESC').all(req.user.userId);
 
+  // Keeps a running record of the current cycle's numbers, updated on every
+  // load. Once a new paycheck's pay_date takes over, this row simply stops
+  // being touched and becomes a frozen historical snapshot - no explicit
+  // "cycle ended" detection needed. Powers the Insights trend view.
+  db.prepare(`INSERT INTO cycle_history (user_id, pay_date, paycheck_amount, discretionary_budget, total_spent, safe_to_spend, updated_at)
+              VALUES (?,?,?,?,?,?,datetime('now'))
+              ON CONFLICT(user_id, pay_date) DO UPDATE SET total_spent=excluded.total_spent, safe_to_spend=excluded.safe_to_spend, updated_at=excluded.updated_at`)
+    .run(req.user.userId, payDate, payAmt, discBudget, spent, safe);
+
   res.json({
     safeToSpend: Math.round(safe*100)/100,
     paycheckAmount: payAmt,

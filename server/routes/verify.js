@@ -42,6 +42,7 @@ router.post('/verify-transfers', async (req, res) => {
   const details = [];
   let allGood = true;
   for (const bill of template) {
+    if (bill.match_name) continue; // autopays from checking - nothing to transfer or verify in savings
     const key = bill.category.replace(/ /g, '_').toLowerCase();
     const acctId = envMap[key];
     if (!acctId || acctId === 'placeholder') {

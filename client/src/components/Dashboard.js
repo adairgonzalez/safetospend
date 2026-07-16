@@ -108,7 +108,7 @@ export default function Dashboard({ token, onLogout }) {
         <h3 className="section-title">Transfer checklist</h3>
         {data.checklist?.map((c, i) => (
           <div className="row" key={i}>
-            <span>{c.category}</span>
+            <span>{c.category}{c.autopay && <span className="chip neutral" style={{marginLeft:8}}>auto-pay</span>}</span>
             <span className="row-amount">{usd(c.amount)}</span>
           </div>
         ))}

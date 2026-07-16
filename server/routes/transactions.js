@@ -39,17 +39,22 @@ router.get('/safe-to-spend', async (req, res) => {
 
   // Anything that left the paycheck account since payday counts as spending,
   // except internal transfers to savings (that's the bill money, already
-  // subtracted via discretionaryBudget, not discretionary spending) and
+  // subtracted via discretionaryBudget, not discretionary spending),
   // anything flagged reimbursable (money that's coming back, so it never
-  // really left the budget even though it left the account).
+  // really left the budget even though it left the account), and anything
+  // matching an autopay bill (already subtracted via discretionaryBudget,
+  // just like a transfer - counting it again here would double-charge the
+  // same expense once via the reduced budget and again as spending).
   // Pending debits count too (safer to undercount safe-to-spend than
   // overcount it while a swipe hasn't posted yet).
   const reimbursableIds = new Set(
     db.prepare('SELECT transaction_id FROM reimbursements WHERE user_id=?').all(req.user.userId).map(r => r.transaction_id)
   );
+  const autopayMatchers = template.map(r => r.match_name).filter(Boolean).map(s => s.toUpperCase());
+  const isAutopayBill = (t) => autopayMatchers.some(m => (t.name || '').toUpperCase().includes(m));
   const debitsSincePayday = txns.filter(t => {
     if (hasPinnedAccount && t.account_id !== process.env.PAYCHECK_ACCOUNT_ID) return false;
-    return t.date >= payDate && t.amount > 0 && !isTransfer(t);
+    return t.date >= payDate && t.amount > 0 && !isTransfer(t) && !isAutopayBill(t);
   });
   const spending = debitsSincePayday.filter(t => !reimbursableIds.has(t.transaction_id));
   const spent = spending.reduce((s,t) => s + t.amount, 0);
@@ -73,7 +78,10 @@ router.get('/safe-to-spend', async (req, res) => {
     discretionaryBudget: discBudget,
     totalSpent: spent,
     nextPayday: new Date(new Date(payDate).getTime() + 14*86400000).toISOString().slice(0,10),
-    checklist: template.map(r => ({ category: r.category, amount: r.amount, description: `Transfer $${r.amount} to ${r.category}` })),
+    checklist: template.map(r => ({
+      category: r.category, amount: r.amount, autopay: !!r.match_name,
+      description: r.match_name ? `Already budgeted — auto-pays from checking` : `Transfer $${r.amount} to ${r.category}`,
+    })),
     spending: spending
       .sort((a,b) => new Date(b.date) - new Date(a.date))
       .map(t => ({ transaction_id: t.transaction_id, date: t.date, name: t.name, amount: t.amount, pending: !!t.pending })),

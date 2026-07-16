@@ -14,6 +14,13 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS cycle_history (user_id INTEGER, pay_date TEXT, paycheck_amount REAL, discretionary_budget REAL, total_spent REAL, safe_to_spend REAL, updated_at TEXT, PRIMARY KEY (user_id, pay_date));
 `);
 
+// Marks a bill as auto-paying directly from checking (e.g. a subscription
+// on autopay) rather than being transferred to savings and paid from there.
+// When set, the matching checking charge is excluded from "spending" (it's
+// already accounted for via the reduced discretionary budget) and the bill
+// is skipped by the savings-transfer checklist/verification entirely.
+try { db.exec('ALTER TABLE bills_template ADD COLUMN match_name TEXT'); } catch (e) { /* column already exists */ }
+
 // One-time fixup: an earlier version of the cycle_baselines migration logic
 // carried forward the old ratcheting system's already-corrupted value as a
 // numeric baseline instead of treating it as proof-of-completion. Wipe the
@@ -30,6 +37,16 @@ if (db.prepare('SELECT COUNT(*) AS c FROM bills_template').get().c === 0) {
     ['Rent', 718], ['Tesla', 430], ['Insurance', 115], ['Electricity', 51],
     ['Credit Card Minimums', 475], ['Extra Debt Payment', 750],
   ]) ins.run(category, amount);
+}
+
+// Real recurring charge (Tesla FSD) that auto-drafts from checking instead
+// of getting transferred to savings - see match_name comment above. Runs
+// after the defaults so it doesn't short-circuit the "seed if empty" check.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('add_tesla_fsd_bill')) {
+  if (!db.prepare('SELECT 1 FROM bills_template WHERE category=?').get('Tesla FSD')) {
+    db.prepare('INSERT INTO bills_template (category, amount, match_name) VALUES (?,?,?)').run('Tesla FSD', 100, 'TESLA SUBSCRIPTION');
+  }
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('add_tesla_fsd_bill');
 }
 
 module.exports = db;

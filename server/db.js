@@ -77,4 +77,13 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('seed_credit_cards_
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('seed_credit_cards_v1');
 }
 
+// AMEX is paid off and closed - no longer a recurring obligation. Robinhood's
+// real due day is the 18th (it was paid on 7/10, ahead of schedule, so mark
+// it as handled for the current cycle to avoid double-flagging it as due).
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('update_credit_cards_v2')) {
+  db.prepare("DELETE FROM credit_cards WHERE name=?").run('AMEX');
+  db.prepare("UPDATE credit_cards SET due_day=18, last_paid=datetime('now') WHERE name=?").run('Robinhood');
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('update_credit_cards_v2');
+}
+
 module.exports = db;

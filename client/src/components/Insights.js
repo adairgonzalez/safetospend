@@ -79,7 +79,10 @@ export default function Insights({ token }) {
 
   const cardsDueSoon = cards
     .map(c => ({ ...c, next: nextDueDate(c.due_day) }))
-    .filter(c => c.next && c.next <= nextPayday)
+    // Paid sometime during this cycle (even ahead of its actual due date)
+    // counts as handled - don't flag it again just because the recurring
+    // day-of-month still falls before payday.
+    .filter(c => c.next && c.next <= nextPayday && !(c.last_paid && new Date(c.last_paid) >= payDate))
     .sort((a, b) => a.next - b.next);
   const dueSoonTotal = cardsDueSoon.reduce((s, c) => s + c.minimum, 0);
   const unknownDueDate = cards.filter(c => !c.due_day);

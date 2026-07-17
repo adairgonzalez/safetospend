@@ -1,9 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { getCardStatus } = require('../cardStatus');
+
+const statusRank = { overdue: 0, due_today: 1, upcoming: 2, unknown: 3 };
 
 router.get('/', (req, res) => {
-  res.json(db.prepare('SELECT * FROM credit_cards WHERE user_id=? ORDER BY due_day IS NULL, due_day').all(req.user.userId));
+  const cards = db.prepare('SELECT * FROM credit_cards WHERE user_id=?').all(req.user.userId);
+  // Only dateStr (a plain 'YYYY-MM-DD' string) goes out, never the raw Date
+  // - JSON.stringify would otherwise call toISOString() on it automatically,
+  // reintroducing the same UTC-shift-to-tomorrow bug fixed on the client.
+  const withStatus = cards.map(c => {
+    const s = getCardStatus(c);
+    return { ...c, status: s.status, dateStr: s.dateStr, daysOverdue: s.daysOverdue };
+  });
+  withStatus.sort((a, b) => statusRank[a.status] - statusRank[b.status] || (a.dateStr || '').localeCompare(b.dateStr || ''));
+  res.json(withStatus);
 });
 
 router.post('/', (req, res) => {

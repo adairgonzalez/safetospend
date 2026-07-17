@@ -100,9 +100,18 @@ export default function Dashboard({ token, onLogout }) {
 
       <div className="stats">
         <div className="stat"><div className="stat-label">Paycheck ({data.paycheckDate})</div><div className="stat-value">{usd(data.paycheckAmount)}</div></div>
-        <div className="stat"><div className="stat-label">Set aside for bills</div><div className="stat-value">{usd(data.paycheckAmount - data.discretionaryBudget)}</div></div>
+        <div className="stat"><div className="stat-label">Set aside for bills</div><div className="stat-value">{usd(data.billsAllocated)}</div></div>
         <div className="stat"><div className="stat-label">Spent so far</div><div className="stat-value">{usd(data.totalSpent)}</div></div>
       </div>
+
+      {data.carryoverDeficit < 0 && (
+        <div className="card">
+          <div className="row">
+            <span className="muted">Carried over from last cycle's shortfall</span>
+            <span className="row-amount" style={{color:'var(--red)'}}>{usd(data.carryoverDeficit)}</span>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h3 className="section-title">Transfer checklist</h3>

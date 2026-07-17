@@ -2,26 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-// .toISOString() converts to UTC first, which shows tomorrow's date once
-// evening rolls past UTC midnight in any timezone behind UTC (all of NA).
-const localISODate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-// Next occurrence of a day-of-month from today, clamped to the month's real length.
-function nextDueDate(dueDay) {
-  if (!dueDay) return null;
-  const today = new Date();
-  const clamp = (y, m) => Math.min(dueDay, new Date(y, m + 1, 0).getDate());
-  let year = today.getFullYear(), month = today.getMonth();
-  let day = clamp(year, month);
-  let candidate = new Date(year, month, day);
-  if (candidate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-    month += 1;
-    if (month > 11) { month = 0; year += 1; }
-    day = clamp(year, month);
-    candidate = new Date(year, month, day);
-  }
-  return candidate;
-}
+const statusLabel = (c) => {
+  if (c.status === 'overdue') return `${c.daysOverdue} day${c.daysOverdue === 1 ? '' : 's'} overdue (was due ${c.dateStr})`;
+  if (c.status === 'due_today') return 'Due today';
+  if (c.status === 'upcoming') return `Due ${c.dateStr}`;
+  return 'Due date unknown';
+};
+const statusChipClass = (c) => c.status === 'overdue' ? 'bad' : c.status === 'due_today' ? 'bad' : c.status === 'upcoming' ? 'neutral' : 'neutral';
 
 export default function CreditCards({ token }) {
   const [cards, setCards] = useState(null);
@@ -43,10 +31,8 @@ export default function CreditCards({ token }) {
   const markPaid = (id) => fetch(`/api/cards/${id}/mark-paid`, { method: 'POST', headers }).then(load);
   const removeCard = (id) => fetch(`/api/cards/${id}`, { method: 'DELETE', headers }).then(load);
 
-  const withDates = (cards || []).map(c => ({ ...c, next: nextDueDate(c.due_day) }))
-    .sort((a, b) => (a.next && b.next) ? a.next - b.next : a.next ? -1 : b.next ? 1 : 0);
-
   const total = (cards || []).reduce((s, c) => s + c.minimum, 0);
+  const overdueCount = (cards || []).filter(c => c.status === 'overdue').length;
 
   return (
     <div className="container">
@@ -57,25 +43,35 @@ export default function CreditCards({ token }) {
 
       {error && <p className="error-text">{error}</p>}
 
+      {overdueCount > 0 && (
+        <div className="card" style={{ borderColor: 'var(--red)' }}>
+          <p className="error-text" style={{ margin: 0, fontWeight: 600 }}>
+            {overdueCount} card{overdueCount === 1 ? '' : 's'} overdue
+          </p>
+        </div>
+      )}
+
       <div className="card">
         <div className="row"><span className="muted">Total minimums (all cards)</span><span className="row-amount">{usd(total)}/mo</span></div>
       </div>
 
       <div className="card">
         <h3 className="section-title">Cards</h3>
-        {withDates.map(c => (
+        {(cards || []).map(c => (
           <div className="row" key={c.id} style={{ alignItems: 'flex-start' }}>
             <span>{c.name}
               <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-                {c.next ? `due ${localISODate(c.next)}` : 'due date unknown'}
-                {c.last_paid && ` · last paid ${c.last_paid.slice(0, 10)}`}
+                {c.last_paid && `last paid ${c.last_paid.slice(0, 10)}`}
               </div>
               <div style={{ marginTop: 4, display: 'flex', gap: 12 }}>
                 <button className="quiet" style={{ fontSize: 12 }} onClick={() => markPaid(c.id)}>Mark paid</button>
                 <button className="quiet" style={{ fontSize: 12 }} onClick={() => removeCard(c.id)}>Remove</button>
               </div>
             </span>
-            <span className="row-amount">{usd(c.minimum)}</span>
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+              <span className="row-amount">{usd(c.minimum)}</span>
+              <span className={`chip ${statusChipClass(c)}`}>{statusLabel(c)}</span>
+            </span>
           </div>
         ))}
         {cards && cards.length === 0 && <p className="muted" style={{ fontSize: 13 }}>No cards yet.</p>}

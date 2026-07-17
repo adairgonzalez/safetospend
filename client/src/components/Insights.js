@@ -4,25 +4,19 @@ import { Link } from 'react-router-dom';
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const dayMs = 86400000;
 
-// Date objects representing a civil calendar date (today, a due date) must
-// format using local fields - .toISOString() converts to UTC first, which
-// silently shows tomorrow's date once evening rolls past UTC midnight in
-// any timezone behind UTC (all of North America).
+// Date objects representing a civil calendar date (today) must format using
+// local fields - .toISOString() converts to UTC first, which silently shows
+// tomorrow's date once evening rolls past UTC midnight in any timezone
+// behind UTC (all of North America). Card due dates come pre-formatted as
+// dateStr from the server (server/cardStatus.js) for the same reason.
 const localISODate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-function nextDueDate(dueDay) {
-  if (!dueDay) return null;
-  const today = new Date();
-  const clamp = (y, m) => Math.min(dueDay, new Date(y, m + 1, 0).getDate());
-  let year = today.getFullYear(), month = today.getMonth();
-  let candidate = new Date(year, month, clamp(year, month));
-  if (candidate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-    month += 1;
-    if (month > 11) { month = 0; year += 1; }
-    candidate = new Date(year, month, clamp(year, month));
-  }
-  return candidate;
-}
+const cardStatusLabel = (c) => {
+  if (c.status === 'overdue') return `${c.daysOverdue} day${c.daysOverdue === 1 ? '' : 's'} overdue`;
+  if (c.status === 'due_today') return 'due today';
+  if (c.status === 'upcoming') return `due ${c.dateStr}`;
+  return 'due date unknown';
+};
 
 export default function Insights({ token }) {
   const [data, setData] = useState(null);
@@ -83,15 +77,19 @@ export default function Insights({ token }) {
 
   const topExpenses = [...(data.spending || [])].sort((a, b) => b.amount - a.amount).slice(0, 8);
 
+  // Overdue and due-today cards are always urgent regardless of date;
+  // upcoming cards only count if their due date falls before payday.
+  // dateStr is 'YYYY-MM-DD', which sorts/compares correctly as a plain
+  // string - no Date parsing needed (and no timezone risk) for this check.
   const cardsDueSoon = cards
-    .map(c => ({ ...c, next: nextDueDate(c.due_day) }))
-    // Paid sometime during this cycle (even ahead of its actual due date)
-    // counts as handled - don't flag it again just because the recurring
-    // day-of-month still falls before payday.
-    .filter(c => c.next && c.next <= nextPayday && !(c.last_paid && new Date(c.last_paid) >= payDate))
-    .sort((a, b) => a.next - b.next);
+    .filter(c => c.status === 'overdue' || c.status === 'due_today' || (c.status === 'upcoming' && c.dateStr && c.dateStr <= data.nextPayday))
+    .sort((a, b) => (a.dateStr || '').localeCompare(b.dateStr || ''));
+  const overdueCards = cardsDueSoon.filter(c => c.status === 'overdue');
   const dueSoonTotal = cardsDueSoon.reduce((s, c) => s + c.minimum, 0);
   const unknownDueDate = cards.filter(c => !c.due_day);
+
+  const billsBalance = billsAccounts[0]?.balance ?? null;
+  const availableBuffer = billsBalance != null ? billsBalance - dueSoonTotal : null;
 
   const buildSummary = () => {
     const lines = [];
@@ -102,6 +100,7 @@ export default function Insights({ token }) {
     lines.push(`Bills set aside: ${usd(data.paycheckAmount - data.discretionaryBudget)}`);
     lines.push(`Spent so far: ${usd(data.totalSpent)}`);
     lines.push(`Safe to spend right now: ${usd(data.safeToSpend)}`);
+    if (data.carryoverDeficit < 0) lines.push(`(includes ${usd(data.carryoverDeficit)} carried over from last cycle's shortfall)`);
     lines.push('');
     lines.push(`Pace: ${usd(spendRate)}/day so far vs ${usd(budgetPaceRate)}/day budget pace — ${paceLabel}`);
     lines.push(`Projected total spend by payday at this rate: ${usd(projectedSpend)}`);
@@ -116,10 +115,19 @@ export default function Insights({ token }) {
       lines.push('Biggest expenses this cycle:');
       topExpenses.forEach((t, i) => lines.push(`${i + 1}. ${t.name} — ${usd(t.amount)} (${t.date})`));
     }
+    if (overdueCards.length) {
+      lines.push('');
+      lines.push('OVERDUE cards:');
+      overdueCards.forEach(c => lines.push(`- ${c.name}: ${usd(c.minimum)}, ${c.daysOverdue} day(s) overdue`));
+    }
     if (cardsDueSoon.length) {
       lines.push('');
       lines.push(`Card minimums due before next payday (${data.nextPayday}) — total ${usd(dueSoonTotal)}:`);
-      cardsDueSoon.forEach(c => lines.push(`- ${c.name}: ${usd(c.minimum)}, due ${localISODate(c.next)}`));
+      cardsDueSoon.forEach(c => lines.push(`- ${c.name}: ${usd(c.minimum)}, ${cardStatusLabel(c)}`));
+    }
+    if (billsBalance != null) {
+      lines.push('');
+      lines.push(`Bills and Debt balance: ${usd(billsBalance)} — reserved for cards above: ${usd(dueSoonTotal)} — available buffer: ${usd(availableBuffer)}`);
     }
     if (data.reimbursements?.length) {
       lines.push('');
@@ -157,11 +165,28 @@ export default function Insights({ token }) {
         <Link to="/dashboard" className="btn btn-ghost btn-sm">Back</Link>
       </div>
 
+      {overdueCards.length > 0 && (
+        <div className="card" style={{ borderColor: 'var(--red)' }}>
+          <p className="error-text" style={{ margin: 0, fontWeight: 600 }}>
+            {overdueCards.length} card{overdueCards.length === 1 ? '' : 's'} overdue — {overdueCards.map(c => `${c.name} (${usd(c.minimum)})`).join(', ')}
+          </p>
+        </div>
+      )}
+
       <div className="card">
         <button className="btn btn-block" onClick={copySummary}>
           {copied ? 'Copied — paste into a chat with Claude' : 'Copy summary for AI'}
         </button>
       </div>
+
+      {data.carryoverDeficit < 0 && (
+        <div className="card">
+          <div className="row">
+            <span className="muted">Carried over from last cycle</span>
+            <span className="row-amount" style={{ color: 'var(--red)' }}>{usd(data.carryoverDeficit)}</span>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h3 className="section-title">This cycle's pace</h3>
@@ -175,6 +200,21 @@ export default function Insights({ token }) {
         <div className="stat"><div className="stat-label">Projected spend by payday</div><div className="stat-value">{usd(projectedSpend)}</div></div>
         <div className="stat"><div className="stat-label">Projected safe-to-spend</div><div className="stat-value" style={{color: projectedSafe < 0 ? 'var(--red)' : 'inherit'}}>{usd(projectedSafe)}</div></div>
       </div>
+
+      {billsBalance != null && (
+        <div className="card">
+          <h3 className="section-title">Bills and Debt — available buffer</h3>
+          <div className="row"><span className="muted">Current balance</span><span className="row-amount">{usd(billsBalance)}</span></div>
+          <div className="row"><span className="muted">Reserved for cards due soon</span><span className="row-amount">{usd(dueSoonTotal)}</span></div>
+          <div className="row" style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 10 }}>
+            <span style={{ fontWeight: 600 }}>Genuinely available</span>
+            <span className="row-amount" style={{ color: availableBuffer < 0 ? 'var(--red)' : 'var(--green)' }}>{usd(availableBuffer)}</span>
+          </div>
+          <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+            This is what's left after covering every card due before your next paycheck — not what's sitting in the account. Balance alone can look like slack that isn't really there.
+          </p>
+        </div>
+      )}
 
       {topExpenses.length > 0 && (
         <div className="card">
@@ -193,7 +233,7 @@ export default function Insights({ token }) {
           <h3 className="section-title">Card minimums due before payday</h3>
           {cardsDueSoon.map((c, i) => (
             <div className="row" key={i}>
-              <span>{c.name}<div className="muted" style={{ fontSize: 12, marginTop: 2 }}>due {localISODate(c.next)}</div></span>
+              <span>{c.name}<div className="muted" style={{ fontSize: 12, marginTop: 2, color: c.status === 'overdue' ? 'var(--red)' : undefined }}>{cardStatusLabel(c)}</div></span>
               <span className="row-amount">{usd(c.minimum)}</span>
             </div>
           ))}

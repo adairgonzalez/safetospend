@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
 const plaidClient = require('./plaidClient');
+const { localISODate } = require('./cardStatus');
 
 const PORT = process.env.PORT || 5001;
 const TOPIC = process.env.NTFY_TOPIC;
@@ -48,10 +49,40 @@ async function recordBaselines(payDate) {
   }
 }
 
+// Notifies once when a card first flips to overdue, then once per calendar
+// day thereafter (on reminder ticks only) for as long as it stays unpaid -
+// persistent without spamming 3x/day. Dedup key includes today's date for
+// the reminder so each new day gets its own chance to notify.
+async function checkCardDueDates(sendReminder) {
+  const cards = await api('/cards');
+  if (!Array.isArray(cards)) return;
+  const todayStr = localISODate(new Date());
+  const alreadyNotified = db.prepare('SELECT 1 FROM card_notifications WHERE card_id=? AND occurrence=? AND kind=?');
+  const recordNotified = db.prepare('INSERT OR IGNORE INTO card_notifications (card_id, occurrence, kind) VALUES (?,?,?)');
+  for (const c of cards) {
+    if (c.status === 'overdue') {
+      if (!alreadyNotified.get(c.id, c.dateStr, 'overdue')) {
+        await notify('Card overdue 🚨', `${c.name}: ${usd(c.minimum)} was due ${c.dateStr} (${c.daysOverdue} day${c.daysOverdue === 1 ? '' : 's'} ago).`, 'high');
+        recordNotified.run(c.id, c.dateStr, 'overdue');
+      } else if (sendReminder) {
+        const reminderKind = `overdue_reminder_${todayStr}`;
+        if (!alreadyNotified.get(c.id, c.dateStr, reminderKind)) {
+          await notify('Still overdue ⚠️', `${c.name}: ${usd(c.minimum)}, ${c.daysOverdue} days overdue.`, 'high');
+          recordNotified.run(c.id, c.dateStr, reminderKind);
+        }
+      }
+    } else if (c.status === 'due_today' && !alreadyNotified.get(c.id, c.dateStr, 'due_today')) {
+      await notify('Card due today', `${c.name}: ${usd(c.minimum)} due today.`, 'high');
+      recordNotified.run(c.id, c.dateStr, 'due_today');
+    }
+  }
+}
+
 // forceRefresh: skip when Plaid already told us via webhook that fresh data
 // is ready (transactionsRefresh is a billed call - no point paying for it
 // twice). sendReminder: whether an unfinished transfer should re-notify.
 async function tick({ forceRefresh = true, sendReminder = false } = {}) {
+  await checkCardDueDates(sendReminder).catch(e => console.error('card due-date check failed:', e.message));
   try {
     if (forceRefresh) {
       const refreshResult = await api('/transactions/force-refresh', 'POST').catch(e => ({ error: e.message }));

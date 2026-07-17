@@ -35,7 +35,17 @@ router.get('/safe-to-spend', async (req, res) => {
   const payAmt = -paycheck.amount, payDate = paycheck.date;
   const template = db.prepare('SELECT * FROM bills_template').all();
   const allocated = template.reduce((s,r) => s + r.amount, 0);
-  const discBudget = payAmt - allocated;
+
+  // A cycle that ends negative shouldn't just vanish when the next one
+  // starts fresh - that overspending is still real money you're behind on.
+  // Carry the previous cycle's shortfall (if any) into this cycle's budget,
+  // so it stays visible until you actually make it back up. A cycle that
+  // ends positive naturally stops carrying anything forward (self-clearing).
+  const prevCycle = db.prepare('SELECT safe_to_spend FROM cycle_history WHERE user_id=? AND pay_date < ? ORDER BY pay_date DESC LIMIT 1')
+    .get(req.user.userId, payDate);
+  const carryoverDeficit = (prevCycle && prevCycle.safe_to_spend < 0) ? prevCycle.safe_to_spend : 0;
+
+  const discBudget = payAmt - allocated + carryoverDeficit;
 
   // Anything that left the paycheck account since payday counts as spending,
   // except internal transfers to savings (that's the bill money, already
@@ -76,6 +86,8 @@ router.get('/safe-to-spend', async (req, res) => {
     paycheckAmount: payAmt,
     paycheckDate: payDate,
     discretionaryBudget: discBudget,
+    billsAllocated: allocated,
+    carryoverDeficit: Math.round(carryoverDeficit*100)/100,
     totalSpent: spent,
     nextPayday: new Date(new Date(payDate).getTime() + 14*86400000).toISOString().slice(0,10),
     checklist: template.map(r => ({

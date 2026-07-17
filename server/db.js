@@ -12,6 +12,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS verified_transfers (user_id INTEGER, pay_date TEXT, account_id TEXT, verified_at TEXT, PRIMARY KEY (user_id, pay_date, account_id));
   CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY, applied_at TEXT DEFAULT (datetime('now')));
   CREATE TABLE IF NOT EXISTS cycle_history (user_id INTEGER, pay_date TEXT, paycheck_amount REAL, discretionary_budget REAL, total_spent REAL, safe_to_spend REAL, updated_at TEXT, PRIMARY KEY (user_id, pay_date));
+  CREATE TABLE IF NOT EXISTS credit_cards (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, minimum REAL, due_day INTEGER, created_at TEXT DEFAULT (datetime('now')));
 `);
 
 // Marks a bill as auto-paying directly from checking (e.g. a subscription
@@ -20,6 +21,7 @@ db.exec(`
 // already accounted for via the reduced discretionary budget) and the bill
 // is skipped by the savings-transfer checklist/verification entirely.
 try { db.exec('ALTER TABLE bills_template ADD COLUMN match_name TEXT'); } catch (e) { /* column already exists */ }
+try { db.exec('ALTER TABLE credit_cards ADD COLUMN last_paid TEXT'); } catch (e) { /* column already exists */ }
 
 // One-time fixup: an earlier version of the cycle_baselines migration logic
 // carried forward the old ratcheting system's already-corrupted value as a
@@ -55,6 +57,24 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('add_tesla_fsd_bill
 if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('bump_electricity_budget_v1')) {
   db.prepare('UPDATE bills_template SET amount=? WHERE category=?').run(90, 'Electricity');
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('bump_electricity_budget_v1');
+}
+
+// Real card minimums/due dates worked out by hand in conversation - saving
+// them so future cycles don't require reconstructing this from scratch.
+// AMEX and Robinhood's due dates are unknown (due_day left null) - only
+// known as already-paid this cycle.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('seed_credit_cards_v1')) {
+  const ins = db.prepare('INSERT INTO credit_cards (user_id, name, minimum, due_day) VALUES (1,?,?,?)');
+  for (const [name, minimum, due_day] of [
+    ['AMEX', 128.11, null],
+    ['Robinhood', 108, null],
+    ['SavorOne', 54, 16],
+    ['Amazon', 344, 18],
+    ['Citi', 70, 24],
+    ['Quicksilver (4k)', 150, 27],
+    ['Quicksilver (small)', 30, 5],
+  ]) ins.run(name, minimum, due_day);
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('seed_credit_cards_v1');
 }
 
 module.exports = db;

@@ -9,6 +9,7 @@ const templateRoutes = require('./routes/template');
 const transactionsRoutes = require('./routes/transactions');
 const verifyRoutes = require('./routes/verify');
 const insightsRoutes = require('./routes/insights');
+const cardsRoutes = require('./routes/cards');
 const { authMiddleware } = require('./routes/auth');
 
 const app = express();
@@ -20,6 +21,7 @@ app.use('/api/template', authMiddleware, templateRoutes);
 app.use('/api/transactions', authMiddleware, transactionsRoutes);
 app.use('/api/verify', authMiddleware, verifyRoutes);
 app.use('/api/insights', authMiddleware, insightsRoutes);
+app.use('/api/cards', authMiddleware, cardsRoutes);
 const isQA = process.env.PLAID_ENV !== 'production';
 app.get('/api/meta', (req, res) => res.json({ env: process.env.PLAID_ENV || 'sandbox', qa: isQA }));
 

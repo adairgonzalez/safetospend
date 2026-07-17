@@ -4,11 +4,26 @@ import { Link } from 'react-router-dom';
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const dayMs = 86400000;
 
+function nextDueDate(dueDay) {
+  if (!dueDay) return null;
+  const today = new Date();
+  const clamp = (y, m) => Math.min(dueDay, new Date(y, m + 1, 0).getDate());
+  let year = today.getFullYear(), month = today.getMonth();
+  let candidate = new Date(year, month, clamp(year, month));
+  if (candidate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+    month += 1;
+    if (month > 11) { month = 0; year += 1; }
+    candidate = new Date(year, month, clamp(year, month));
+  }
+  return candidate;
+}
+
 export default function Insights({ token }) {
   const [data, setData] = useState(null);
   const [verify, setVerify] = useState(null);
   const [history, setHistory] = useState([]);
   const [billsAccounts, setBillsAccounts] = useState([]);
+  const [cards, setCards] = useState([]);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -19,12 +34,14 @@ export default function Insights({ token }) {
       fetch('/api/verify/verify-transfers', { method: 'POST', headers }).then(r => r.json()).catch(() => null),
       fetch('/api/insights/history', { headers }).then(r => r.json()).catch(() => ({ history: [] })),
       fetch('/api/insights/bills-account', { headers }).then(r => r.json()).catch(() => ({ accounts: [] })),
-    ]).then(([sts, v, h, b]) => {
+      fetch('/api/cards', { headers }).then(r => r.json()).catch(() => []),
+    ]).then(([sts, v, h, b, c]) => {
       if (sts.error) { setError(sts.error); return; }
       setData(sts);
       setVerify(v);
       setHistory(h.history || []);
       setBillsAccounts(b.accounts || []);
+      setCards(Array.isArray(c) ? c : []);
     }).catch(e => setError(e.message));
   }, [token]);
 
@@ -60,6 +77,13 @@ export default function Insights({ token }) {
 
   const topExpenses = [...(data.spending || [])].sort((a, b) => b.amount - a.amount).slice(0, 8);
 
+  const cardsDueSoon = cards
+    .map(c => ({ ...c, next: nextDueDate(c.due_day) }))
+    .filter(c => c.next && c.next <= nextPayday)
+    .sort((a, b) => a.next - b.next);
+  const dueSoonTotal = cardsDueSoon.reduce((s, c) => s + c.minimum, 0);
+  const unknownDueDate = cards.filter(c => !c.due_day);
+
   const buildSummary = () => {
     const lines = [];
     lines.push(`SAFE TO SPEND — Financial Snapshot (${today.toISOString().slice(0, 10)})`);
@@ -82,6 +106,11 @@ export default function Insights({ token }) {
       lines.push('');
       lines.push('Biggest expenses this cycle:');
       topExpenses.forEach((t, i) => lines.push(`${i + 1}. ${t.name} — ${usd(t.amount)} (${t.date})`));
+    }
+    if (cardsDueSoon.length) {
+      lines.push('');
+      lines.push(`Card minimums due before next payday (${data.nextPayday}) — total ${usd(dueSoonTotal)}:`);
+      cardsDueSoon.forEach(c => lines.push(`- ${c.name}: ${usd(c.minimum)}, due ${c.next.toISOString().slice(0, 10)}`));
     }
     if (data.reimbursements?.length) {
       lines.push('');
@@ -150,6 +179,27 @@ export default function Insights({ token }) {
         </div>
       )}
 
+      {cardsDueSoon.length > 0 && (
+        <div className="card">
+          <h3 className="section-title">Card minimums due before payday</h3>
+          {cardsDueSoon.map((c, i) => (
+            <div className="row" key={i}>
+              <span>{c.name}<div className="muted" style={{ fontSize: 12, marginTop: 2 }}>due {c.next.toISOString().slice(0, 10)}</div></span>
+              <span className="row-amount">{usd(c.minimum)}</span>
+            </div>
+          ))}
+          <div className="row" style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 10 }}>
+            <span className="muted">Total needed</span>
+            <span className="row-amount">{usd(dueSoonTotal)}</span>
+          </div>
+          {unknownDueDate.length > 0 && (
+            <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+              {unknownDueDate.map(c => c.name).join(', ')} {unknownDueDate.length === 1 ? 'has' : 'have'} no due date on file — <Link to="/cards" className="quiet">add it</Link>.
+            </p>
+          )}
+        </div>
+      )}
+
       {verify?.details?.length > 0 && (
         <div className="card">
           <h3 className="section-title">Bills status</h3>
@@ -193,6 +243,8 @@ export default function Insights({ token }) {
       )}
 
       <div className="link-row">
+        <Link to="/cards" className="quiet">Credit cards</Link>
+        {' · '}
         <Link to="/dashboard" className="quiet">Back to dashboard</Link>
       </div>
     </div>

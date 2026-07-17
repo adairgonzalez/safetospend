@@ -44,10 +44,20 @@ function getCardStatus(card, now = new Date()) {
   if (!card.due_day) return { status: 'unknown', date: null, dateStr: null };
 
   const lastDue = mostRecentOccurrence(card.due_day, today);
-  const paidSinceLastDue = card.last_paid && localMidnight(new Date(card.last_paid)) >= lastDue;
+
+  // An occurrence that fell before this card was even added to tracking
+  // can't be flagged overdue - we have no last_paid record for it because
+  // we weren't watching yet, not because it was missed. Without this, any
+  // card added with a due date later this month (e.g. added the 16th, due
+  // the 18th) looks back to last month's unrecorded occurrence and reports
+  // it as weeks overdue on day one.
+  const trackingStart = card.created_at ? localMidnight(new Date(card.created_at)) : null;
+  const untracked = trackingStart && lastDue < trackingStart;
+  const paidSinceLastDue = untracked || (card.last_paid && localMidnight(new Date(card.last_paid)) >= lastDue);
 
   if (paidSinceLastDue) {
     const next = nextOccurrence(card.due_day, today);
+    if (next.getTime() === today.getTime()) return { status: 'due_today', date: next, dateStr: localISODate(next) };
     return { status: 'upcoming', date: next, dateStr: localISODate(next) };
   }
   if (lastDue.getTime() === today.getTime()) {

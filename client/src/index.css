@@ -41,9 +41,9 @@ body {
   padding-right: env(safe-area-inset-right);
 }
 
-.page { max-width: 640px; margin: 0 auto; padding: 22px 18px calc(var(--nav-h) + env(safe-area-inset-bottom) + 24px); animation: fadeSlideUp 0.35s ease both; }
+.page { max-width: 640px; margin: 0 auto; padding: 16px 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px); animation: fadeSlideUp 0.35s ease both; }
 /* legacy alias so any un-migrated markup still lays out sanely */
-.container { max-width: 640px; margin: 0 auto; padding: 22px 18px calc(var(--nav-h) + env(safe-area-inset-bottom) + 24px); }
+.container { max-width: 640px; margin: 0 auto; padding: 16px 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px); }
 
 .qa-banner {
   position: sticky; top: 0; z-index: 30;
@@ -54,7 +54,7 @@ body {
 }
 
 /* ---------- Header ---------- */
-.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 10px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 10px; }
 .brand { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; display: flex; gap: 9px; align-items: center; }
 .brand-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); flex-shrink: 0; }
 .topbar-actions { display: flex; gap: 8px; align-items: center; }
@@ -64,8 +64,8 @@ body {
   background: linear-gradient(180deg, var(--card) 0%, var(--card) 100%);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
-  padding: 20px;
-  margin-bottom: 14px;
+  padding: 15px 16px;
+  margin-bottom: 10px;
   box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px -16px rgba(0,0,0,0.6);
 }
 .card.accent-good { border-color: rgba(74,222,128,0.35); box-shadow: 0 0 0 1px rgba(74,222,128,0.08) inset, 0 8px 24px -16px rgba(0,0,0,0.6); }
@@ -73,31 +73,31 @@ body {
 .card.accent-bad { border-color: rgba(251,113,133,0.4); }
 
 /* ---------- Hero ---------- */
-.hero { text-align: center; padding: 30px 22px; position: relative; overflow: hidden; }
-.hero-label { color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 10px; font-weight: 700; }
-.hero-amount { font-size: 54px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; font-variant-numeric: tabular-nums; animation: popIn 0.5s cubic-bezier(.2,1.4,.4,1) both; }
+.hero { text-align: center; padding: 20px 22px; position: relative; overflow: hidden; }
+.hero-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 6px; font-weight: 700; }
+.hero-amount { font-size: 42px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; font-variant-numeric: tabular-nums; animation: popIn 0.5s cubic-bezier(.2,1.4,.4,1) both; }
 .hero-amount.good { color: var(--green); text-shadow: 0 0 28px rgba(74,222,128,0.35); }
 .hero-amount.warn { color: var(--amber); text-shadow: 0 0 28px rgba(251,191,36,0.3); }
 .hero-amount.bad { color: var(--red); text-shadow: 0 0 28px rgba(251,113,133,0.3); }
-.hero-sub { color: var(--muted); margin-top: 12px; font-size: 13.5px; }
-.hero-progress { height: 5px; border-radius: 99px; background: var(--border-soft); margin-top: 18px; overflow: hidden; }
+.hero-sub { color: var(--muted); margin-top: 8px; font-size: 13px; }
+.hero-progress { height: 5px; border-radius: 99px; background: var(--border-soft); margin-top: 12px; overflow: hidden; }
 .hero-progress-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), #16a34a); transition: width 0.6s cubic-bezier(.2,.8,.2,1); }
 
 /* ---------- Stats ---------- */
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
-.stat { background: var(--card); border: 1px solid var(--border-soft); border-radius: 14px; padding: 14px 15px; transition: transform 0.15s; }
-.stat-icon { font-size: 15px; margin-bottom: 6px; opacity: 0.8; }
-.stat-label { color: var(--muted); font-size: 11.5px; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-.stat-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.stat { background: var(--card); border: 1px solid var(--border-soft); border-radius: 14px; padding: 10px 13px; transition: transform 0.15s; }
+.stat-icon { font-size: 15px; margin-bottom: 4px; opacity: 0.8; }
+.stat-label { color: var(--muted); font-size: 11px; margin-bottom: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-value { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
-.section-title { font-size: 12.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.section-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 10px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
 
 /* ---------- List rows ----------
    Always top-aligned by default so multi-line content (title + meta +
    actions on the left, amount + status on the right) never has to
    remember a per-instance override - that inconsistency was the source
    of the "buggy list" alignment issues. */
-.row { display: flex; justify-content: space-between; align-items: flex-start; padding: 13px 0; border-bottom: 1px solid var(--border-soft); gap: 14px; }
+.row { display: flex; justify-content: space-between; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--border-soft); gap: 14px; }
 .row:last-child { border-bottom: none; padding-bottom: 0; }
 .row:first-of-type { padding-top: 0; }
 .row-main { min-width: 0; flex: 1; }
@@ -157,7 +157,7 @@ input::placeholder { color: var(--muted-2); }
 .chip.bad .chip-dot { animation: pulseDot 1.6s ease-in-out infinite; }
 
 /* ---------- Banners ---------- */
-.banner { border-radius: var(--radius); padding: 15px 18px; margin-bottom: 14px; display: flex; gap: 12px; align-items: flex-start; }
+.banner { border-radius: var(--radius); padding: 12px 16px; margin-bottom: 10px; display: flex; gap: 12px; align-items: flex-start; }
 .banner.danger { background: linear-gradient(135deg, rgba(251,113,133,0.16), rgba(225,29,72,0.08)); border: 1px solid rgba(251,113,133,0.35); }
 .banner.success { background: linear-gradient(135deg, rgba(74,222,128,0.16), rgba(22,163,74,0.06)); border: 1px solid rgba(74,222,128,0.35); }
 .banner.info { background: var(--card-2); border: 1px solid var(--border); }
@@ -168,7 +168,7 @@ input::placeholder { color: var(--muted-2); }
 .error-text { color: var(--red); font-size: 14px; margin: 8px 0; }
 .muted { color: var(--muted); }
 .center { text-align: center; }
-.empty { text-align: center; padding: 46px 22px; }
+.empty { text-align: center; padding: 32px 22px; }
 .empty-icon { font-size: 34px; margin-bottom: 10px; opacity: 0.9; }
 .empty h2 { margin: 0 0 8px; font-size: 19px; letter-spacing: -0.02em; }
 .empty p { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
@@ -222,6 +222,11 @@ a.quiet:hover, button.quiet:hover { color: var(--text); }
 .list-link-icon { width: 34px; height: 34px; border-radius: 10px; background: var(--card-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .list-link-arrow { margin-left: auto; color: var(--muted-2); }
 
+/* ---------- Segmented tabs (Insights) ---------- */
+.tabs { display: flex; gap: 4px; background: var(--card-2); border: 1px solid var(--border-soft); border-radius: 12px; padding: 4px; margin-bottom: 12px; }
+.tab { flex: 1; border: none; background: none; color: var(--muted); font-size: 13px; font-weight: 700; padding: 8px 6px; border-radius: 9px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.tab.active { background: var(--card); color: var(--text); box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 4px 12px -6px rgba(0,0,0,0.5); }
+
 @media (max-width: 380px) {
-  .hero-amount { font-size: 46px; }
+  .hero-amount { font-size: 38px; }
 }

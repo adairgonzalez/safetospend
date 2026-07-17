@@ -27,6 +27,7 @@ export default function Insights({ token }) {
   const [cards, setCards] = useState([]);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState('overview');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -179,132 +180,154 @@ export default function Insights({ token }) {
         </div>
       )}
 
-      <button className="btn btn-block" onClick={copySummary} style={{ marginBottom: 14 }}>
+      <button className="btn btn-block" onClick={copySummary} style={{ marginBottom: 12 }}>
         <SparkleIcon width={17} height={17} />{copied ? 'Copied — paste into a chat with Claude' : 'Copy summary for AI'}
       </button>
 
-      {data.carryoverDeficit < 0 && (
-        <div className="card">
-          <div className="row">
-            <span className="muted">Carried over from last cycle</span>
-            <span className="row-amount" style={{ color: 'var(--red)' }}>{usd(data.carryoverDeficit)}</span>
-          </div>
-        </div>
-      )}
-
-      <div className="card">
-        <h3 className="section-title"><ClockIcon width={14} height={14} />This cycle's pace</h3>
-        <div className="row"><span>Day {daysElapsed} of {daysTotal}</span><span className="row-amount">{daysLeft} days left</span></div>
-        <div className="hero-progress" style={{ marginTop: 2, marginBottom: 14 }}>
-          <div className="hero-progress-fill" style={{ width: `${dayProgress}%`, background: paceTone === 'bad' ? 'linear-gradient(90deg,#fb7185,#e11d48)' : paceTone === 'warn' ? 'linear-gradient(90deg,#fbbf24,#d97706)' : undefined }} />
-        </div>
-        <div className="row"><span>Spending rate</span><span className="row-amount">{usd(spendRate)}/day</span></div>
-        <div className="row"><span>Budget pace</span><span className="row-amount">{usd(budgetPaceRate)}/day</span></div>
-        <div className="row"><span className={`chip ${paceTone === 'good' ? 'ok' : paceTone === 'bad' ? 'bad' : 'warn'}`}><span className="chip-dot" />{paceLabel}</span></div>
+      <div className="tabs">
+        <button className={`tab${tab === 'overview' ? ' active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
+        <button className={`tab${tab === 'bills' ? ' active' : ''}`} onClick={() => setTab('bills')}>Bills & cards</button>
+        <button className={`tab${tab === 'history' ? ' active' : ''}`} onClick={() => setTab('history')}>History</button>
       </div>
 
-      <div className="stats">
-        <div className="stat"><div className="stat-label">Projected spend by payday</div><div className="stat-value">{usd(projectedSpend)}</div></div>
-        <div className="stat"><div className="stat-label">Projected safe-to-spend</div><div className="stat-value" style={{color: projectedSafe < 0 ? 'var(--red)' : 'inherit'}}>{usd(projectedSafe)}</div></div>
-      </div>
-
-      {billsBalance != null && (
-        <div className="card">
-          <h3 className="section-title"><WalletIcon width={14} height={14} />Bills and Debt — available buffer</h3>
-          <div className="row"><span className="muted">Current balance</span><span className="row-amount">{usd(billsBalance)}</span></div>
-          <div className="row"><span className="muted">Reserved for cards due soon</span><span className="row-amount">{usd(dueSoonTotal)}</span></div>
-          <div className="row" style={{ marginTop: 4 }}>
-            <span style={{ fontWeight: 700 }}>Genuinely available</span>
-            <span className="row-amount" style={{ color: availableBuffer < 0 ? 'var(--red)' : 'var(--green)', fontSize: 17 }}>{usd(availableBuffer)}</span>
-          </div>
-          <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-            This is what's left after covering every card due before your next paycheck — not what's sitting in the account. Balance alone can look like slack that isn't really there.
-          </p>
-        </div>
-      )}
-
-      {topExpenses.length > 0 && (
-        <div className="card">
-          <h3 className="section-title">Biggest expenses this cycle</h3>
-          {topExpenses.map((t, i) => (
-            <div className="row" key={i}>
-              <div className="row-main"><div className="row-title">{t.name}</div><div className="row-meta">{t.date}</div></div>
-              <span className="row-amount">{usd(t.amount)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {cardsDueSoon.length > 0 && (
-        <div className="card">
-          <h3 className="section-title">Card minimums due before payday</h3>
-          {cardsDueSoon.map((c, i) => (
-            <div className={`row row-accent ${c.status === 'overdue' ? 'bad' : c.status === 'due_today' ? 'warn' : ''}`} key={i}>
-              <div className="row-main">
-                <div className="row-title">{c.name}</div>
-                <div className="row-meta" style={{ color: c.status === 'overdue' ? 'var(--red)' : undefined, fontWeight: c.status === 'overdue' ? 700 : 400 }}>{cardStatusLabel(c)}</div>
+      {tab === 'overview' && (
+        <>
+          {data.carryoverDeficit < 0 && (
+            <div className="card">
+              <div className="row">
+                <span className="muted">Carried over from last cycle</span>
+                <span className="row-amount" style={{ color: 'var(--red)' }}>{usd(data.carryoverDeficit)}</span>
               </div>
-              <span className="row-amount">{usd(c.minimum)}</span>
             </div>
-          ))}
-          <div className="row" style={{ marginTop: 4 }}>
-            <span className="muted">Total needed</span>
-            <span className="row-amount">{usd(dueSoonTotal)}</span>
-          </div>
-          {unknownDueDate.length > 0 && (
-            <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-              {unknownDueDate.map(c => c.name).join(', ')} {unknownDueDate.length === 1 ? 'has' : 'have'} no due date on file — <span className="quiet" style={{cursor:'pointer'}} onClick={() => navigate('/cards')}>add it</span>.
-            </p>
           )}
-        </div>
-      )}
 
-      {verify?.details?.length > 0 && (
-        <div className="card">
-          <h3 className="section-title">Bills status</h3>
-          {verify.details.map((d, i) => (
-            <div className="row" key={i}>
-              <span style={{ fontSize: 14 }}>{d.category}</span>
-              <span className={`chip ${d.status === 'Transferred' ? 'ok' : d.status === 'MISSING' ? 'bad' : 'neutral'}`}>{d.status}</span>
+          <div className="card">
+            <h3 className="section-title"><ClockIcon width={14} height={14} />This cycle's pace</h3>
+            <div className="row"><span>Day {daysElapsed} of {daysTotal}</span><span className="row-amount">{daysLeft} days left</span></div>
+            <div className="hero-progress" style={{ marginTop: 2, marginBottom: 10 }}>
+              <div className="hero-progress-fill" style={{ width: `${dayProgress}%`, background: paceTone === 'bad' ? 'linear-gradient(90deg,#fb7185,#e11d48)' : paceTone === 'warn' ? 'linear-gradient(90deg,#fbbf24,#d97706)' : undefined }} />
             </div>
-          ))}
-        </div>
+            <div className="row"><span>Spending rate</span><span className="row-amount">{usd(spendRate)}/day</span></div>
+            <div className="row"><span>Budget pace</span><span className="row-amount">{usd(budgetPaceRate)}/day</span></div>
+            <div className="row"><span className={`chip ${paceTone === 'good' ? 'ok' : paceTone === 'bad' ? 'bad' : 'warn'}`}><span className="chip-dot" />{paceLabel}</span></div>
+          </div>
+
+          <div className="stats">
+            <div className="stat"><div className="stat-label">Projected spend by payday</div><div className="stat-value">{usd(projectedSpend)}</div></div>
+            <div className="stat"><div className="stat-label">Projected safe-to-spend</div><div className="stat-value" style={{color: projectedSafe < 0 ? 'var(--red)' : 'inherit'}}>{usd(projectedSafe)}</div></div>
+          </div>
+        </>
       )}
 
-      {billsAccounts.map((acct, ai) => (
-        <div className="card" key={ai}>
-          <h3 className="section-title">{acct.name}{acct.mask ? ` · …${acct.mask}` : ''}</h3>
-          <div className="row"><span className="muted">Current balance</span><span className="row-amount">{usd(acct.balance)}</span></div>
-          {acct.activity.length === 0 && <p className="muted" style={{ fontSize: 13 }}>No activity in the last 2 months.</p>}
-          {acct.activity.map((t, i) => (
-            <div className="row" key={i}>
-              <div className="row-main">
-                <div className="row-title">{t.name}{t.isIncomingTransfer && <span className="chip neutral">transfer in</span>}</div>
-                <div className="row-meta">{t.date}</div>
+      {tab === 'bills' && (
+        <>
+          {billsBalance != null && (
+            <div className="card">
+              <h3 className="section-title"><WalletIcon width={14} height={14} />Bills and Debt — available buffer</h3>
+              <div className="row"><span className="muted">Current balance</span><span className="row-amount">{usd(billsBalance)}</span></div>
+              <div className="row"><span className="muted">Reserved for cards due soon</span><span className="row-amount">{usd(dueSoonTotal)}</span></div>
+              <div className="row" style={{ marginTop: 4 }}>
+                <span style={{ fontWeight: 700 }}>Genuinely available</span>
+                <span className="row-amount" style={{ color: availableBuffer < 0 ? 'var(--red)' : 'var(--green)', fontSize: 17 }}>{usd(availableBuffer)}</span>
               </div>
-              <span className="row-amount" style={{ color: t.amount >= 0 ? 'var(--green)' : 'var(--text)' }}>
-                {t.amount >= 0 ? '+' : ''}{usd(t.amount)}
-              </span>
+              <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                This is what's left after covering every card due before your next paycheck — not what's sitting in the account.
+              </p>
             </div>
-          ))}
-        </div>
-      ))}
+          )}
 
-      {history.length > 0 && (
-        <div className="card">
-          <h3 className="section-title">Recent cycles</h3>
-          {history.map((h, i) => (
-            <div className="row" key={i}>
-              <div className="row-main"><div className="row-title">{h.pay_date}</div><div className="row-meta">paycheck {usd(h.paycheck_amount)}, spent {usd(h.total_spent)}</div></div>
-              <span className="row-amount">{usd(h.safe_to_spend)}</span>
+          {cardsDueSoon.length > 0 && (
+            <div className="card">
+              <h3 className="section-title">Card minimums due before payday</h3>
+              {cardsDueSoon.map((c, i) => (
+                <div className={`row row-accent ${c.status === 'overdue' ? 'bad' : c.status === 'due_today' ? 'warn' : ''}`} key={i}>
+                  <div className="row-main">
+                    <div className="row-title">{c.name}</div>
+                    <div className="row-meta" style={{ color: c.status === 'overdue' ? 'var(--red)' : undefined, fontWeight: c.status === 'overdue' ? 700 : 400 }}>{cardStatusLabel(c)}</div>
+                  </div>
+                  <span className="row-amount">{usd(c.minimum)}</span>
+                </div>
+              ))}
+              <div className="row" style={{ marginTop: 4 }}>
+                <span className="muted">Total needed</span>
+                <span className="row-amount">{usd(dueSoonTotal)}</span>
+              </div>
+              {unknownDueDate.length > 0 && (
+                <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                  {unknownDueDate.map(c => c.name).join(', ')} {unknownDueDate.length === 1 ? 'has' : 'have'} no due date on file — <span className="quiet" style={{cursor:'pointer'}} onClick={() => navigate('/cards')}>add it</span>.
+                </p>
+              )}
+            </div>
+          )}
+
+          {verify?.details?.length > 0 && (
+            <div className="card">
+              <h3 className="section-title">Bills status</h3>
+              {verify.details.map((d, i) => (
+                <div className="row" key={i}>
+                  <span style={{ fontSize: 14 }}>{d.category}</span>
+                  <span className={`chip ${d.status === 'Transferred' ? 'ok' : d.status === 'MISSING' ? 'bad' : 'neutral'}`}>{d.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {billsAccounts.map((acct, ai) => (
+            <div className="card" key={ai}>
+              <h3 className="section-title">{acct.name}{acct.mask ? ` · …${acct.mask}` : ''}</h3>
+              <div className="row"><span className="muted">Current balance</span><span className="row-amount">{usd(acct.balance)}</span></div>
+              {acct.activity.length === 0 && <p className="muted" style={{ fontSize: 13 }}>No activity in the last 2 months.</p>}
+              {acct.activity.map((t, i) => (
+                <div className="row" key={i}>
+                  <div className="row-main">
+                    <div className="row-title">{t.name}{t.isIncomingTransfer && <span className="chip neutral">transfer in</span>}</div>
+                    <div className="row-meta">{t.date}</div>
+                  </div>
+                  <span className="row-amount" style={{ color: t.amount >= 0 ? 'var(--green)' : 'var(--text)' }}>
+                    {t.amount >= 0 ? '+' : ''}{usd(t.amount)}
+                  </span>
+                </div>
+              ))}
             </div>
           ))}
-        </div>
+
+          <div className="link-row">
+            <span className="quiet" style={{cursor:'pointer'}} onClick={() => navigate('/cards')}>Credit cards</span>
+          </div>
+        </>
       )}
 
-      <div className="link-row">
-        <span className="quiet" style={{cursor:'pointer'}} onClick={() => navigate('/cards')}>Credit cards</span>
-      </div>
+      {tab === 'history' && (
+        <>
+          {topExpenses.length > 0 && (
+            <div className="card">
+              <h3 className="section-title">Biggest expenses this cycle</h3>
+              {topExpenses.map((t, i) => (
+                <div className="row" key={i}>
+                  <div className="row-main"><div className="row-title">{t.name}</div><div className="row-meta">{t.date}</div></div>
+                  <span className="row-amount">{usd(t.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {history.length > 0 && (
+            <div className="card">
+              <h3 className="section-title">Recent cycles</h3>
+              {history.map((h, i) => (
+                <div className="row" key={i}>
+                  <div className="row-main"><div className="row-title">{h.pay_date}</div><div className="row-meta">paycheck {usd(h.paycheck_amount)}, spent {usd(h.total_spent)}</div></div>
+                  <span className="row-amount">{usd(h.safe_to_spend)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {topExpenses.length === 0 && history.length === 0 && (
+            <p className="muted center" style={{ fontSize: 13, marginTop: 20 }}>Nothing to show yet.</p>
+          )}
+        </>
+      )}
     </div>
   );
 }

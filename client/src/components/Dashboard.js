@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import PlaidLink from './PlaidLink';
 import VerificationPanel from './VerificationPanel';
 import AnimatedNumber from './AnimatedNumber';
-import { RefreshIcon, WalletIcon, ArrowUpIcon, WarningIcon } from './Icons';
+import { RefreshIcon, ArrowUpIcon, WarningIcon } from './Icons';
 
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
@@ -126,15 +126,7 @@ export default function Dashboard({ token, onLogout }) {
         </div>
       )}
 
-      <div className="card">
-        <h3 className="section-title"><WalletIcon width={14} height={14} />Transfer checklist</h3>
-        {data.checklist?.map((c, i) => (
-          <div className="row" key={i}>
-            <span className="row-title">{c.category}{c.autopay && <span className="chip neutral">auto-pay</span>}</span>
-            <span className="row-amount">{usd(c.amount)}</span>
-          </div>
-        ))}
-      </div>
+      <VerificationPanel token={token} checklist={data.checklist} />
 
       {data.spending?.length > 0 && (
         <div className="card">
@@ -175,8 +167,6 @@ export default function Dashboard({ token, onLogout }) {
           ))}
         </div>
       )}
-
-      <VerificationPanel token={token} />
     </>
   , true);
 }

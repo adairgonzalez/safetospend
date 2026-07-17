@@ -97,4 +97,14 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('add_chase_card_v1'
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('add_chase_card_v1');
 }
 
+// Statement confirms the real minimum is $105 (not the $104 estimate), and
+// the 7/12 autopay attempt bounced (still linked to checking) but a manual
+// 7/15 payment succeeded with no further return - Chase considers this
+// cycle's payment settled, so mark it paid even though which of the two
+// accounts actually funded it is still being confirmed.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('confirm_chase_card_paid_v1')) {
+  db.prepare("UPDATE credit_cards SET minimum=?, last_paid=datetime('now') WHERE name=?").run(105, 'Chase (credit card)');
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('confirm_chase_card_paid_v1');
+}
+
 module.exports = db;

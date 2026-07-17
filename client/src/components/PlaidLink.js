@@ -37,7 +37,7 @@ export default function PlaidLink({ token }) {
   if (isOAuthRedirect) return <div className="empty"><p className="muted">Finishing bank connection…</p></div>;
   return (
     <div>
-      <button className="btn" onClick={() => open()} disabled={!ready}>Link bank account</button>
+      <button className="btn btn-block" onClick={() => open()} disabled={!ready}>Link bank account</button>
       {error && <p className="error-text">{error}</p>}
     </div>
   );

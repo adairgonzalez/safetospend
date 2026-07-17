@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import PlaidLink from './PlaidLink';
 import VerificationPanel from './VerificationPanel';
+import AnimatedNumber from './AnimatedNumber';
+import { RefreshIcon, WalletIcon, ArrowUpIcon, WarningIcon } from './Icons';
 
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
@@ -10,6 +12,8 @@ export default function Dashboard({ token, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState(null);
+  const navigate = useNavigate();
+
   const load = useCallback(() => {
     setLoading(true);
     fetch('/api/transactions/safe-to-spend', { headers: { Authorization: `Bearer ${token}` } })
@@ -48,13 +52,13 @@ export default function Dashboard({ token, onLogout }) {
   };
 
   const shell = (children, showRefresh) => (
-    <div className="container">
+    <div className="page">
       <div className="topbar">
         <div className="brand"><span className="brand-dot" />Safe to Spend</div>
-        <div style={{display:'flex', gap:8}}>
+        <div className="topbar-actions">
           {showRefresh && (
-            <button onClick={forceRefresh} disabled={refreshing} className="btn btn-ghost btn-sm">
-              {refreshing ? 'Refreshing…' : 'Refresh'}
+            <button onClick={forceRefresh} disabled={refreshing} className="btn btn-ghost btn-icon" aria-label="Refresh">
+              <RefreshIcon width={18} height={18} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
             </button>
           )}
           <button onClick={onLogout} className="btn btn-ghost btn-sm">Log out</button>
@@ -62,7 +66,7 @@ export default function Dashboard({ token, onLogout }) {
       </div>
       {refreshMsg && (
         <p className={refreshMsg.startsWith('Refresh failed') || refreshMsg.startsWith('Could not reach') ? 'error-text center' : 'muted center'}
-           style={{marginTop:-16, marginBottom:16, fontSize:13}}>
+           style={{marginTop:-10, marginBottom:16, fontSize:13}}>
           {refreshMsg}
         </p>
       )}
@@ -70,10 +74,16 @@ export default function Dashboard({ token, onLogout }) {
     </div>
   );
 
-  if (loading) return shell(<div className="empty"><p className="muted">Loading your money…</p></div>);
+  if (loading) return shell(
+    <>
+      <div className="skel skel-hero" />
+      <div className="skel skel-row" /><div className="skel skel-row" /><div className="skel skel-row" />
+    </>
+  );
 
   if (data?.error) return shell(
     <div className="card empty">
+      <div className="empty-icon">{data.noBank ? '🏦' : '🔍'}</div>
       <h2>{data.noBank ? 'Connect your bank' : 'Nothing to show yet'}</h2>
       <p>{data.noBank ? 'Link your Capital One account to start tracking.' : data.error}</p>
       {data.noBank
@@ -81,7 +91,7 @@ export default function Dashboard({ token, onLogout }) {
         : (
           <>
             <button className="btn" onClick={forceRefresh} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh from bank'}</button>
-            <div className="link-row" style={{marginTop:14}}><Link to="/debug" className="quiet">View raw transactions</Link></div>
+            <div className="link-row" style={{marginTop:14}}><span className="quiet" style={{cursor:'pointer'}} onClick={() => navigate('/debug')}>View raw transactions</span></div>
           </>
         )}
     </div>
@@ -89,13 +99,15 @@ export default function Dashboard({ token, onLogout }) {
 
   const tone = data.safeToSpend < 0 ? 'bad' : data.safeToSpend < 50 ? 'warn' : 'good';
   const daysLeft = Math.max(0, Math.ceil((new Date(data.nextPayday) - new Date()) / 86400000));
+  const cyclePct = Math.max(0, Math.min(100, 100 - (daysLeft / 14) * 100));
 
   return shell(
     <>
-      <div className="card hero">
+      <div className={`card hero${tone === 'good' ? ' accent-good' : tone === 'bad' ? ' accent-bad' : ' accent-warn'}`}>
         <div className="hero-label">Safe to spend</div>
-        <div className={`hero-amount ${tone}`}>{usd(data.safeToSpend)}</div>
+        <AnimatedNumber value={data.safeToSpend} className={`hero-amount ${tone}`} />
         <div className="hero-sub">until {data.nextPayday} · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</div>
+        <div className="hero-progress"><div className="hero-progress-fill" style={{ width: `${cyclePct}%` }} /></div>
       </div>
 
       <div className="stats">
@@ -105,19 +117,20 @@ export default function Dashboard({ token, onLogout }) {
       </div>
 
       {data.carryoverDeficit < 0 && (
-        <div className="card">
-          <div className="row">
-            <span className="muted">Carried over from last cycle's shortfall</span>
-            <span className="row-amount" style={{color:'var(--red)'}}>{usd(data.carryoverDeficit)}</span>
+        <div className="banner danger">
+          <span className="banner-icon"><WarningIcon width={18} height={18} color="var(--red)" /></span>
+          <div>
+            <p className="banner-title" style={{color:'var(--red)'}}>Carried over from last cycle</p>
+            <p className="banner-body">{usd(data.carryoverDeficit)} shortfall rolled into this cycle's budget.</p>
           </div>
         </div>
       )}
 
       <div className="card">
-        <h3 className="section-title">Transfer checklist</h3>
+        <h3 className="section-title"><WalletIcon width={14} height={14} />Transfer checklist</h3>
         {data.checklist?.map((c, i) => (
           <div className="row" key={i}>
-            <span>{c.category}{c.autopay && <span className="chip neutral" style={{marginLeft:8}}>auto-pay</span>}</span>
+            <span className="row-title">{c.category}{c.autopay && <span className="chip neutral">auto-pay</span>}</span>
             <span className="row-amount">{usd(c.amount)}</span>
           </div>
         ))}
@@ -125,15 +138,16 @@ export default function Dashboard({ token, onLogout }) {
 
       {data.spending?.length > 0 && (
         <div className="card">
-          <h3 className="section-title">Spending since payday</h3>
+          <h3 className="section-title"><ArrowUpIcon width={14} height={14} />Spending since payday</h3>
           {data.spending.map((t, i) => (
-            <div className="row" key={i} style={{alignItems:'flex-start'}}>
-              <span>{t.name}{t.pending && <span className="chip neutral" style={{marginLeft:8}}>pending</span>}
-                <div className="muted" style={{fontSize:12, marginTop:2}}>{t.date}</div>
-                <button className="quiet" style={{fontSize:12, marginTop:4}} onClick={() => flagReimbursable(t)}>
-                  Mark reimbursable
-                </button>
-              </span>
+            <div className="row" key={i}>
+              <div className="row-main">
+                <div className="row-title">{t.name}{t.pending && <span className="chip neutral">pending</span>}</div>
+                <div className="row-meta">{t.date}</div>
+                <div className="row-actions">
+                  <button className="quiet" onClick={() => flagReimbursable(t)}>Mark reimbursable</button>
+                </div>
+              </div>
               <span className="row-amount">{usd(t.amount)}</span>
             </div>
           ))}
@@ -144,34 +158,25 @@ export default function Dashboard({ token, onLogout }) {
         <div className="card">
           <h3 className="section-title">Reimbursements</h3>
           {data.reimbursements.map((r, i) => (
-            <div className="row" key={i} style={{alignItems:'flex-start'}}>
-              <span>{r.name}
-                <div className="muted" style={{fontSize:12, marginTop:2}}>{r.date}</div>
-                <div style={{marginTop:4, display:'flex', gap:12}}>
-                  {!r.received && <button className="quiet" style={{fontSize:12}} onClick={() => markReimbursed(r.transaction_id)}>Mark received</button>}
-                  <button className="quiet" style={{fontSize:12}} onClick={() => unflagReimbursable(r.transaction_id)}>Unflag</button>
+            <div className="row" key={i}>
+              <div className="row-main">
+                <div className="row-title">{r.name}</div>
+                <div className="row-meta">{r.date}</div>
+                <div className="row-actions">
+                  {!r.received && <button className="quiet" onClick={() => markReimbursed(r.transaction_id)}>Mark received</button>}
+                  <button className="quiet" onClick={() => unflagReimbursable(r.transaction_id)}>Unflag</button>
                 </div>
-              </span>
-              <span style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6}}>
+              </div>
+              <div className="row-side">
                 <span className="row-amount">{usd(r.amount)}</span>
                 <span className={`chip ${r.received ? 'ok' : 'neutral'}`}>{r.received ? 'received' : 'pending'}</span>
-              </span>
+              </div>
             </div>
           ))}
         </div>
       )}
 
       <VerificationPanel token={token} />
-
-      <div className="link-row">
-        <Link to="/insights" className="quiet">Insights</Link>
-        {' · '}
-        <Link to="/cards" className="quiet">Credit cards</Link>
-        {' · '}
-        <Link to="/template" className="quiet">Edit bill template</Link>
-        {' · '}
-        <Link to="/debug" className="quiet">Raw transactions</Link>
-      </div>
     </>
   , true);
 }

@@ -12,6 +12,7 @@ const defaultCategories = [
 
 export default function BillTemplateForm({ token }) {
   const [categories, setCategories] = useState(defaultCategories);
+  const [saved, setSaved] = useState(false);
   const navigate = useNavigate();
   useEffect(() => {
     fetch('/api/template', { headers: { Authorization: `Bearer ${token}` } })
@@ -20,16 +21,16 @@ export default function BillTemplateForm({ token }) {
 
   const save = () => {
     fetch('/api/template', { method:'POST', headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'}, body:JSON.stringify({categories}) })
-      .then(() => navigate('/dashboard'));
+      .then(() => { setSaved(true); setTimeout(() => navigate('/dashboard'), 500); });
   };
 
   const total = categories.reduce((s, c) => s + (c.amount || 0), 0);
 
   return (
-    <div className="container" style={{maxWidth:480}}>
+    <div className="page" style={{maxWidth:480}}>
       <div className="topbar">
         <div className="brand"><span className="brand-dot" />Bill template</div>
-        <button className="btn btn-ghost btn-sm" onClick={() => navigate('/dashboard')}>Back</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => navigate('/more')}>Back</button>
       </div>
       <div className="card">
         <h3 className="section-title">Per paycheck</h3>
@@ -43,7 +44,7 @@ export default function BillTemplateForm({ token }) {
           <span className="muted">Total set aside</span>
           <span className="row-amount">{total.toLocaleString('en-US',{style:'currency',currency:'USD'})}</span>
         </div>
-        <button className="btn btn-block" style={{marginTop:16}} onClick={save}>Save</button>
+        <button className="btn btn-block" style={{marginTop:16}} onClick={save} disabled={saved}>{saved ? 'Saved ✓' : 'Save'}</button>
       </div>
     </div>
   );

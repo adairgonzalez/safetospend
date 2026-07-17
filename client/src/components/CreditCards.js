@@ -1,20 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { WarningIcon, CardIcon } from './Icons';
 
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
 const statusLabel = (c) => {
-  if (c.status === 'overdue') return `${c.daysOverdue} day${c.daysOverdue === 1 ? '' : 's'} overdue (was due ${c.dateStr})`;
+  if (c.status === 'overdue') return `${c.daysOverdue} day${c.daysOverdue === 1 ? '' : 's'} overdue`;
   if (c.status === 'due_today') return 'Due today';
   if (c.status === 'upcoming') return `Due ${c.dateStr}`;
   return 'Due date unknown';
 };
-const statusChipClass = (c) => c.status === 'overdue' ? 'bad' : c.status === 'due_today' ? 'bad' : c.status === 'upcoming' ? 'neutral' : 'neutral';
+const accentClass = (c) => c.status === 'overdue' || c.status === 'due_today' ? 'bad' : c.status === 'upcoming' ? 'warn' : '';
 
 export default function CreditCards({ token }) {
   const [cards, setCards] = useState(null);
   const [error, setError] = useState(null);
   const [form, setForm] = useState({ name: '', minimum: '', due_day: '' });
+  const [showForm, setShowForm] = useState(false);
+  const navigate = useNavigate();
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   const load = () => {
@@ -26,67 +29,84 @@ export default function CreditCards({ token }) {
     e.preventDefault();
     if (!form.name || !form.minimum) return;
     fetch('/api/cards', { method: 'POST', headers, body: JSON.stringify({ name: form.name, minimum: parseFloat(form.minimum), due_day: form.due_day ? parseInt(form.due_day, 10) : null }) })
-      .then(() => { setForm({ name: '', minimum: '', due_day: '' }); load(); });
+      .then(() => { setForm({ name: '', minimum: '', due_day: '' }); setShowForm(false); load(); });
   };
   const markPaid = (id) => fetch(`/api/cards/${id}/mark-paid`, { method: 'POST', headers }).then(load);
   const removeCard = (id) => fetch(`/api/cards/${id}`, { method: 'DELETE', headers }).then(load);
 
   const total = (cards || []).reduce((s, c) => s + c.minimum, 0);
-  const overdueCount = (cards || []).filter(c => c.status === 'overdue').length;
+  const overdueCards = (cards || []).filter(c => c.status === 'overdue');
 
   return (
-    <div className="container">
+    <div className="page">
       <div className="topbar">
         <div className="brand"><span className="brand-dot" />Credit cards</div>
-        <Link to="/dashboard" className="btn btn-ghost btn-sm">Back</Link>
+        <button className="btn btn-ghost btn-sm" onClick={() => navigate('/more')}>Back</button>
       </div>
 
       {error && <p className="error-text">{error}</p>}
 
-      {overdueCount > 0 && (
-        <div className="card" style={{ borderColor: 'var(--red)' }}>
-          <p className="error-text" style={{ margin: 0, fontWeight: 600 }}>
-            {overdueCount} card{overdueCount === 1 ? '' : 's'} overdue
-          </p>
+      {overdueCards.length > 0 && (
+        <div className="banner danger">
+          <span className="banner-icon"><WarningIcon width={19} height={19} color="var(--red)" /></span>
+          <div>
+            <p className="banner-title" style={{ color: 'var(--red)' }}>{overdueCards.length} card{overdueCards.length === 1 ? '' : 's'} overdue</p>
+            <p className="banner-body">{overdueCards.map(c => `${c.name} (${usd(c.minimum)})`).join(', ')}</p>
+          </div>
         </div>
       )}
 
-      <div className="card">
-        <div className="row"><span className="muted">Total minimums (all cards)</span><span className="row-amount">{usd(total)}/mo</span></div>
+      <div className="stats">
+        <div className="stat">
+          <div className="stat-icon"><CardIcon width={16} height={16} color="var(--muted)" /></div>
+          <div className="stat-label">Cards tracked</div>
+          <div className="stat-value">{(cards || []).length}</div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">Total minimums</div>
+          <div className="stat-value">{usd(total)}<span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>/mo</span></div>
+        </div>
       </div>
 
       <div className="card">
         <h3 className="section-title">Cards</h3>
         {(cards || []).map(c => (
-          <div className="row" key={c.id} style={{ alignItems: 'flex-start' }}>
-            <span>{c.name}
-              <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-                {c.last_paid && `last paid ${c.last_paid.slice(0, 10)}`}
+          <div className={`row row-accent ${accentClass(c)}`} key={c.id}>
+            <div className="row-main">
+              <div className="row-title">{c.name}</div>
+              <div className="row-meta" style={{ color: c.status === 'overdue' ? 'var(--red)' : c.status === 'due_today' ? 'var(--amber)' : undefined, fontWeight: c.status === 'overdue' || c.status === 'due_today' ? 700 : 400 }}>
+                {statusLabel(c)}{c.last_paid && c.status !== 'overdue' ? ` · last paid ${c.last_paid.slice(0, 10)}` : ''}
               </div>
-              <div style={{ marginTop: 4, display: 'flex', gap: 12 }}>
-                <button className="quiet" style={{ fontSize: 12 }} onClick={() => markPaid(c.id)}>Mark paid</button>
-                <button className="quiet" style={{ fontSize: 12 }} onClick={() => removeCard(c.id)}>Remove</button>
+              <div className="row-actions">
+                <button className="quiet" onClick={() => markPaid(c.id)}>Mark paid</button>
+                <button className="quiet" onClick={() => removeCard(c.id)}>Remove</button>
               </div>
-            </span>
-            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-              <span className="row-amount">{usd(c.minimum)}</span>
-              <span className={`chip ${statusChipClass(c)}`}>{statusLabel(c)}</span>
-            </span>
+            </div>
+            <span className="row-amount">{usd(c.minimum)}</span>
           </div>
         ))}
-        {cards && cards.length === 0 && <p className="muted" style={{ fontSize: 13 }}>No cards yet.</p>}
+        {cards && cards.length === 0 && <p className="muted" style={{ fontSize: 13 }}>No cards yet — add one below.</p>}
       </div>
 
       <div className="card">
-        <h3 className="section-title">Add a card</h3>
-        <form onSubmit={addCard}>
-          <div className="field"><input placeholder="Name (e.g. Citi)" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <input type="number" step="0.01" placeholder="Minimum $" value={form.minimum} onChange={e => setForm({ ...form, minimum: e.target.value })} />
-            <input type="number" min="1" max="31" placeholder="Due day (1-31)" value={form.due_day} onChange={e => setForm({ ...form, due_day: e.target.value })} />
-          </div>
-          <button type="submit" className="btn btn-block" style={{ marginTop: 12 }}>Add card</button>
-        </form>
+        {!showForm ? (
+          <button className="btn btn-ghost btn-block" onClick={() => setShowForm(true)}>+ Add a card</button>
+        ) : (
+          <>
+            <h3 className="section-title">Add a card</h3>
+            <form onSubmit={addCard}>
+              <div className="field"><input placeholder="Name (e.g. Citi)" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} autoFocus /></div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input type="number" step="0.01" placeholder="Minimum $" value={form.minimum} onChange={e => setForm({ ...form, minimum: e.target.value })} />
+                <input type="number" min="1" max="31" placeholder="Due day (1-31)" value={form.due_day} onChange={e => setForm({ ...form, due_day: e.target.value })} />
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowForm(false)}>Cancel</button>
+                <button type="submit" className="btn" style={{ flex: 2 }}>Add card</button>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

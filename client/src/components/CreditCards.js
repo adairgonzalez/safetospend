@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+// .toISOString() converts to UTC first, which shows tomorrow's date once
+// evening rolls past UTC midnight in any timezone behind UTC (all of NA).
+const localISODate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 // Next occurrence of a day-of-month from today, clamped to the month's real length.
 function nextDueDate(dueDay) {
@@ -64,7 +67,7 @@ export default function CreditCards({ token }) {
           <div className="row" key={c.id} style={{ alignItems: 'flex-start' }}>
             <span>{c.name}
               <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-                {c.next ? `due ${c.next.toISOString().slice(0, 10)}` : 'due date unknown'}
+                {c.next ? `due ${localISODate(c.next)}` : 'due date unknown'}
                 {c.last_paid && ` · last paid ${c.last_paid.slice(0, 10)}`}
               </div>
               <div style={{ marginTop: 4, display: 'flex', gap: 12 }}>

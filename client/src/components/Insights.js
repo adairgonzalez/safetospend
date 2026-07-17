@@ -4,6 +4,12 @@ import { Link } from 'react-router-dom';
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const dayMs = 86400000;
 
+// Date objects representing a civil calendar date (today, a due date) must
+// format using local fields - .toISOString() converts to UTC first, which
+// silently shows tomorrow's date once evening rolls past UTC midnight in
+// any timezone behind UTC (all of North America).
+const localISODate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 function nextDueDate(dueDay) {
   if (!dueDay) return null;
   const today = new Date();
@@ -89,7 +95,7 @@ export default function Insights({ token }) {
 
   const buildSummary = () => {
     const lines = [];
-    lines.push(`SAFE TO SPEND — Financial Snapshot (${today.toISOString().slice(0, 10)})`);
+    lines.push(`SAFE TO SPEND — Financial Snapshot (${localISODate(today)})`);
     lines.push('');
     lines.push(`Pay cycle: ${data.paycheckDate} → ${data.nextPayday} (day ${daysElapsed} of ${daysTotal}, ${daysLeft} left)`);
     lines.push(`Paycheck: ${usd(data.paycheckAmount)}`);
@@ -113,7 +119,7 @@ export default function Insights({ token }) {
     if (cardsDueSoon.length) {
       lines.push('');
       lines.push(`Card minimums due before next payday (${data.nextPayday}) — total ${usd(dueSoonTotal)}:`);
-      cardsDueSoon.forEach(c => lines.push(`- ${c.name}: ${usd(c.minimum)}, due ${c.next.toISOString().slice(0, 10)}`));
+      cardsDueSoon.forEach(c => lines.push(`- ${c.name}: ${usd(c.minimum)}, due ${localISODate(c.next)}`));
     }
     if (data.reimbursements?.length) {
       lines.push('');
@@ -187,7 +193,7 @@ export default function Insights({ token }) {
           <h3 className="section-title">Card minimums due before payday</h3>
           {cardsDueSoon.map((c, i) => (
             <div className="row" key={i}>
-              <span>{c.name}<div className="muted" style={{ fontSize: 12, marginTop: 2 }}>due {c.next.toISOString().slice(0, 10)}</div></span>
+              <span>{c.name}<div className="muted" style={{ fontSize: 12, marginTop: 2 }}>due {localISODate(c.next)}</div></span>
               <span className="row-amount">{usd(c.minimum)}</span>
             </div>
           ))}

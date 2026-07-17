@@ -116,12 +116,23 @@ export default function Dashboard({ token, onLogout }) {
   const daysLeft = Math.max(0, Math.ceil((new Date(data.nextPayday) - new Date()) / 86400000));
   const cyclePct = Math.max(0, Math.min(100, 100 - (daysLeft / 14) * 100));
 
-  // Upcoming bills = credit card due dates landing before the next paycheck
-  // (overdue/due-today always included regardless of date).
-  const upcomingBills = cards
+  // Upcoming bills = every bill in this cycle's checklist (rent, Tesla,
+  // insurance, card minimums, etc.) plus credit card due dates landing
+  // before the next paycheck (overdue/due-today always included regardless
+  // of date). Checklist bills don't carry an exact calendar due date - they
+  // get transferred right after payday - so they're tagged with the
+  // paycheck date and naturally sort to the front of the list.
+  const billItems = (data.checklist || []).map((c, i) => ({
+    key: `bill-${i}`, name: c.category, amount: c.amount, dateStr: data.paycheckDate,
+    label: c.autopay ? 'auto-pay' : 'this cycle', autopay: c.autopay, tone: '',
+  }));
+  const cardItems = cards
     .filter(c => c.status === 'overdue' || c.status === 'due_today' || (c.status === 'upcoming' && c.dateStr && c.dateStr <= data.nextPayday))
-    .sort((a, b) => (a.dateStr || '').localeCompare(b.dateStr || ''))
-    .slice(0, 5);
+    .map((c, i) => ({
+      key: `card-${i}`, name: c.name, amount: c.minimum, dateStr: c.dateStr,
+      label: cardStatusLabel(c), autopay: false, tone: c.status === 'overdue' ? 'bad' : c.status === 'due_today' ? 'warn' : '',
+    }));
+  const upcomingBills = [...billItems, ...cardItems].sort((a, b) => (a.dateStr || '').localeCompare(b.dateStr || ''));
 
   const debtPlan = computeDebtPlan(cards, data.safeToSpend);
 
@@ -153,13 +164,13 @@ export default function Dashboard({ token, onLogout }) {
       {upcomingBills.length > 0 && (
         <div className="card">
           <h3 className="section-title"><CalendarIcon width={14} height={14} />Upcoming bills</h3>
-          {upcomingBills.map((c, i) => (
-            <div className={`row row-accent ${c.status === 'overdue' ? 'bad' : c.status === 'due_today' ? 'warn' : ''}`} key={i}>
+          {upcomingBills.map((item) => (
+            <div className={`row row-accent ${item.tone}`} key={item.key}>
               <div className="row-main">
-                <div className="row-title">{c.name}</div>
-                <div className="row-meta" style={{ color: c.status === 'overdue' ? 'var(--red)' : undefined, fontWeight: c.status === 'overdue' ? 700 : 400 }}>{cardStatusLabel(c)}</div>
+                <div className="row-title">{item.name}{item.autopay && <span className="chip neutral">auto-pay</span>}</div>
+                <div className="row-meta" style={{ color: item.tone === 'bad' ? 'var(--red)' : undefined, fontWeight: item.tone === 'bad' ? 700 : 400 }}>{item.label}</div>
               </div>
-              <span className="row-amount">{usd(c.minimum)}</span>
+              <span className="row-amount">{usd(item.amount)}</span>
             </div>
           ))}
           <div className="link-row" style={{ marginTop: 4 }}>

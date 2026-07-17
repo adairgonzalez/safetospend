@@ -108,4 +108,14 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('confirm_chase_card
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('confirm_chase_card_paid_v1');
 }
 
+// Tesla Insurance ($224-251/mo, ~ due the 29th) charges a Discover card tied
+// to checking, not a separate revolving card - same autopay pattern as
+// Tesla FSD. Match string is a best guess (no real transaction has posted
+// yet this cycle to confirm the exact name Plaid will show); correct it
+// once the Jul 29 charge actually appears if it doesn't match.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('mark_insurance_autopay_v1')) {
+  db.prepare('UPDATE bills_template SET match_name=? WHERE category=?').run('TESLA INSURANCE', 'Insurance');
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('mark_insurance_autopay_v1');
+}
+
 module.exports = db;

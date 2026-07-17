@@ -86,4 +86,15 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('update_credit_card
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('update_credit_cards_v2');
 }
 
+// Named distinctly from the existing 'JPMorgan Chase' Bills-and-Debt
+// transaction (that one's the Tesla auto loan, $868.15) - this is a
+// separate Chase credit card. Due day 12th already passed this cycle;
+// last_paid left unset since it's unconfirmed whether it's been paid.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('add_chase_card_v1')) {
+  if (!db.prepare('SELECT 1 FROM credit_cards WHERE name=?').get('Chase (credit card)')) {
+    db.prepare('INSERT INTO credit_cards (user_id, name, minimum, due_day) VALUES (1,?,?,?)').run('Chase (credit card)', 104, 12);
+  }
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('add_chase_card_v1');
+}
+
 module.exports = db;

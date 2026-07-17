@@ -23,6 +23,8 @@ db.exec(`
 // is skipped by the savings-transfer checklist/verification entirely.
 try { db.exec('ALTER TABLE bills_template ADD COLUMN match_name TEXT'); } catch (e) { /* column already exists */ }
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN last_paid TEXT'); } catch (e) { /* column already exists */ }
+try { db.exec('ALTER TABLE credit_cards ADD COLUMN balance REAL'); } catch (e) { /* column already exists */ }
+try { db.exec('ALTER TABLE credit_cards ADD COLUMN apr REAL'); } catch (e) { /* column already exists */ }
 
 // One-time fixup: an earlier version of the cycle_baselines migration logic
 // carried forward the old ratcheting system's already-corrupted value as a

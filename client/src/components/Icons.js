@@ -50,3 +50,9 @@ export const ClockIcon = (p) => (
 export const ArrowUpIcon = (p) => (
   <svg {...base} {...p}><path d="M12 19V5M6 11l6-6 6 6" /></svg>
 );
+export const TrendDownIcon = (p) => (
+  <svg {...base} {...p}><path d="M4 6l6.5 6.5L14 9l6 6" /><path d="M20 10v5h-5" /></svg>
+);
+export const CalendarIcon = (p) => (
+  <svg {...base} {...p}><rect x="3.5" y="5" width="17" height="16" rx="2.5" /><path d="M8 3v4M16 3v4M3.5 10h17" /></svg>
+);

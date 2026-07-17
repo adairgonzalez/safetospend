@@ -3,12 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import PlaidLink from './PlaidLink';
 import VerificationPanel from './VerificationPanel';
 import AnimatedNumber from './AnimatedNumber';
-import { RefreshIcon, ArrowUpIcon, WarningIcon } from './Icons';
+import { RefreshIcon, ArrowUpIcon, WarningIcon, CalendarIcon, TrendDownIcon } from './Icons';
+import { computeDebtPlan } from '../utils/debtPlan';
 
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
+const cardStatusLabel = (c) => {
+  if (c.status === 'overdue') return `${c.daysOverdue} day${c.daysOverdue === 1 ? '' : 's'} overdue`;
+  if (c.status === 'due_today') return 'due today';
+  if (c.status === 'upcoming') return `due ${c.dateStr}`;
+  return 'due date unknown';
+};
+
 export default function Dashboard({ token, onLogout }) {
   const [data, setData] = useState(null);
+  const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState(null);
@@ -16,9 +25,15 @@ export default function Dashboard({ token, onLogout }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch('/api/transactions/safe-to-spend', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => { setData(d); setLoading(false); })
-      .catch(e => { setData({ error: `Could not reach server: ${e.message}` }); setLoading(false); });
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.all([
+      fetch('/api/transactions/safe-to-spend', { headers }).then(r => r.json()),
+      fetch('/api/cards', { headers }).then(r => r.json()).catch(() => []),
+    ]).then(([d, c]) => {
+      setData(d);
+      setCards(Array.isArray(c) ? c : []);
+      setLoading(false);
+    }).catch(e => { setData({ error: `Could not reach server: ${e.message}` }); setLoading(false); });
   }, [token]);
   useEffect(() => { load(); }, [load]);
 
@@ -101,6 +116,15 @@ export default function Dashboard({ token, onLogout }) {
   const daysLeft = Math.max(0, Math.ceil((new Date(data.nextPayday) - new Date()) / 86400000));
   const cyclePct = Math.max(0, Math.min(100, 100 - (daysLeft / 14) * 100));
 
+  // Upcoming bills = credit card due dates landing before the next paycheck
+  // (overdue/due-today always included regardless of date).
+  const upcomingBills = cards
+    .filter(c => c.status === 'overdue' || c.status === 'due_today' || (c.status === 'upcoming' && c.dateStr && c.dateStr <= data.nextPayday))
+    .sort((a, b) => (a.dateStr || '').localeCompare(b.dateStr || ''))
+    .slice(0, 5);
+
+  const debtPlan = computeDebtPlan(cards, data.safeToSpend);
+
   return shell(
     <>
       <div className={`card hero${tone === 'good' ? ' accent-good' : tone === 'bad' ? ' accent-bad' : ' accent-warn'}`}>
@@ -126,7 +150,57 @@ export default function Dashboard({ token, onLogout }) {
         </div>
       )}
 
+      {upcomingBills.length > 0 && (
+        <div className="card">
+          <h3 className="section-title"><CalendarIcon width={14} height={14} />Upcoming bills</h3>
+          {upcomingBills.map((c, i) => (
+            <div className={`row row-accent ${c.status === 'overdue' ? 'bad' : c.status === 'due_today' ? 'warn' : ''}`} key={i}>
+              <div className="row-main">
+                <div className="row-title">{c.name}</div>
+                <div className="row-meta" style={{ color: c.status === 'overdue' ? 'var(--red)' : undefined, fontWeight: c.status === 'overdue' ? 700 : 400 }}>{cardStatusLabel(c)}</div>
+              </div>
+              <span className="row-amount">{usd(c.minimum)}</span>
+            </div>
+          ))}
+          <div className="link-row" style={{ marginTop: 4 }}>
+            <span className="quiet" style={{ cursor: 'pointer' }} onClick={() => navigate('/cards')}>See all cards →</span>
+          </div>
+        </div>
+      )}
+
       <VerificationPanel token={token} checklist={data.checklist} />
+
+      {debtPlan.debts.length > 0 && (
+        <div className="card">
+          <h3 className="section-title"><TrendDownIcon width={14} height={14} />Best use of leftover money for debt</h3>
+          {debtPlan.pool <= 0 ? (
+            <p className="muted" style={{ fontSize: 13 }}>Nothing safe to spend right now, so there's no extra to put toward debt this cycle.</p>
+          ) : (
+            <>
+              <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>
+                Putting your {usd(debtPlan.pool)} safe-to-spend toward the highest-interest balances first minimizes what you pay in interest overall.
+              </p>
+              {debtPlan.allocations.map((a, i) => (
+                <div className="row row-accent good" key={i}>
+                  <div className="row-main">
+                    <div className="row-title">{a.name}{a.payoff && <span className="chip ok">pays it off</span>}</div>
+                    <div className="row-meta">{a.apr != null ? `${a.apr}% APR` : 'APR unknown'}</div>
+                  </div>
+                  <span className="row-amount">{usd(a.amount)}</span>
+                </div>
+              ))}
+              {debtPlan.unallocated > 0.01 && (
+                <div className="row"><span className="muted">Left over after clearing all balances</span><span className="row-amount">{usd(debtPlan.unallocated)}</span></div>
+              )}
+              {debtPlan.missingApr && (
+                <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                  Some cards are missing an interest rate — <span className="quiet" style={{cursor:'pointer'}} onClick={() => navigate('/cards')}>add it</span> for a more accurate order.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {data.spending?.length > 0 && (
         <div className="card">

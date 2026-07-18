@@ -25,6 +25,7 @@ try { db.exec('ALTER TABLE bills_template ADD COLUMN match_name TEXT'); } catch 
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN last_paid TEXT'); } catch (e) { /* column already exists */ }
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN balance REAL'); } catch (e) { /* column already exists */ }
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN apr REAL'); } catch (e) { /* column already exists */ }
+try { db.exec('ALTER TABLE credit_cards ADD COLUMN credit_limit REAL'); } catch (e) { /* column already exists */ }
 
 // One-time fixup: an earlier version of the cycle_baselines migration logic
 // carried forward the old ratcheting system's already-corrupted value as a
@@ -118,6 +119,25 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('confirm_chase_card
 if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('mark_insurance_autopay_v1')) {
   db.prepare('UPDATE bills_template SET match_name=? WHERE category=?').run('TESLA INSURANCE', 'Insurance');
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('mark_insurance_autopay_v1');
+}
+
+// Real balances/APRs/limits worked out by hand in conversation, needed to
+// drive the avalanche-method debt payoff suggestion on the dashboard.
+// Amazon's APR and limit weren't provided - left null (still contributes
+// its balance to "total debt" but is naturally sorted last in the payoff
+// order behind every card with a known rate).
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('seed_card_balances_apr_v1')) {
+  const upd = db.prepare('UPDATE credit_cards SET balance=?, apr=?, credit_limit=? WHERE name=?');
+  for (const [name, balance, apr, limit] of [
+    ['SavorOne', 2169, 28.24, 3500],
+    ['Citi', 2200, 26.49, 2210],
+    ['Quicksilver (4k)', 4898, 28.24, 5000],
+    ['Quicksilver (small)', 868, 28.99, 1000],
+    ['Chase (credit card)', 10500, 27.74, 12000],
+    ['Robinhood', 3000, 29.24, 5000],
+    ['Amazon', 2464, null, null],
+  ]) upd.run(balance, apr, limit, name);
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('seed_card_balances_apr_v1');
 }
 
 module.exports = db;

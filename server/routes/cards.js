@@ -19,24 +19,24 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, minimum, due_day, balance, apr, credit_limit } = req.body;
+  const { name, minimum, due_day, balance, apr, credit_limit, closed } = req.body;
   if (!name || typeof minimum !== 'number') return res.status(400).json({ error: 'name and minimum required' });
   const day = due_day ? Math.max(1, Math.min(31, Number(due_day))) : null;
   const bal = typeof balance === 'number' ? balance : null;
   const rate = typeof apr === 'number' ? apr : null;
   const limit = typeof credit_limit === 'number' ? credit_limit : null;
-  const info = db.prepare('INSERT INTO credit_cards (user_id, name, minimum, due_day, balance, apr, credit_limit) VALUES (?,?,?,?,?,?,?)').run(req.user.userId, name, minimum, day, bal, rate, limit);
+  const info = db.prepare('INSERT INTO credit_cards (user_id, name, minimum, due_day, balance, apr, credit_limit, closed) VALUES (?,?,?,?,?,?,?,?)').run(req.user.userId, name, minimum, day, bal, rate, limit, closed ? 1 : 0);
   res.json({ success: true, id: info.lastInsertRowid });
 });
 
 router.put('/:id', (req, res) => {
-  const { name, minimum, due_day, balance, apr, credit_limit } = req.body;
+  const { name, minimum, due_day, balance, apr, credit_limit, closed } = req.body;
   const day = due_day ? Math.max(1, Math.min(31, Number(due_day))) : null;
   const bal = typeof balance === 'number' ? balance : null;
   const rate = typeof apr === 'number' ? apr : null;
   const limit = typeof credit_limit === 'number' ? credit_limit : null;
-  db.prepare('UPDATE credit_cards SET name=?, minimum=?, due_day=?, balance=?, apr=?, credit_limit=? WHERE id=? AND user_id=?')
-    .run(name, minimum, day, bal, rate, limit, req.params.id, req.user.userId);
+  db.prepare('UPDATE credit_cards SET name=?, minimum=?, due_day=?, balance=?, apr=?, credit_limit=?, closed=? WHERE id=? AND user_id=?')
+    .run(name, minimum, day, bal, rate, limit, closed ? 1 : 0, req.params.id, req.user.userId);
   res.json({ success: true });
 });
 

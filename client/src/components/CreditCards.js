@@ -15,10 +15,10 @@ const accentClass = (c) => c.status === 'overdue' || c.status === 'due_today' ? 
 export default function CreditCards({ token }) {
   const [cards, setCards] = useState(null);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '' });
+  const [form, setForm] = useState({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '', closed: false });
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '' });
+  const [editForm, setEditForm] = useState({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '', closed: false });
   const navigate = useNavigate();
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -33,16 +33,16 @@ export default function CreditCards({ token }) {
     fetch('/api/cards', { method: 'POST', headers, body: JSON.stringify({
       name: form.name, minimum: parseFloat(form.minimum), due_day: form.due_day ? parseInt(form.due_day, 10) : null,
       balance: form.balance ? parseFloat(form.balance) : null, apr: form.apr ? parseFloat(form.apr) : null,
-      credit_limit: form.credit_limit ? parseFloat(form.credit_limit) : null,
+      credit_limit: form.credit_limit ? parseFloat(form.credit_limit) : null, closed: form.closed,
     }) })
-      .then(() => { setForm({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '' }); setShowForm(false); load(); });
+      .then(() => { setForm({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '', closed: false }); setShowForm(false); load(); });
   };
   const markPaid = (id) => fetch(`/api/cards/${id}/mark-paid`, { method: 'POST', headers }).then(load);
   const removeCard = (id) => fetch(`/api/cards/${id}`, { method: 'DELETE', headers }).then(load);
 
   const startEdit = (c) => {
     setEditingId(c.id);
-    setEditForm({ name: c.name, minimum: c.minimum, due_day: c.due_day || '', balance: c.balance ?? '', apr: c.apr ?? '', credit_limit: c.credit_limit ?? '' });
+    setEditForm({ name: c.name, minimum: c.minimum, due_day: c.due_day || '', balance: c.balance ?? '', apr: c.apr ?? '', credit_limit: c.credit_limit ?? '', closed: !!c.closed });
   };
   const saveEdit = (e) => {
     e.preventDefault();
@@ -50,7 +50,7 @@ export default function CreditCards({ token }) {
     fetch(`/api/cards/${editingId}`, { method: 'PUT', headers, body: JSON.stringify({
       name: editForm.name, minimum: parseFloat(editForm.minimum), due_day: editForm.due_day ? parseInt(editForm.due_day, 10) : null,
       balance: editForm.balance !== '' ? parseFloat(editForm.balance) : null, apr: editForm.apr !== '' ? parseFloat(editForm.apr) : null,
-      credit_limit: editForm.credit_limit !== '' ? parseFloat(editForm.credit_limit) : null,
+      credit_limit: editForm.credit_limit !== '' ? parseFloat(editForm.credit_limit) : null, closed: editForm.closed,
     }) })
       .then(() => { setEditingId(null); load(); });
   };
@@ -107,9 +107,13 @@ export default function CreditCards({ token }) {
               <input type="number" step="0.01" placeholder="Balance $" value={editForm.balance} onChange={e => setEditForm({ ...editForm, balance: e.target.value })} />
               <input type="number" step="0.01" placeholder="APR %" value={editForm.apr} onChange={e => setEditForm({ ...editForm, apr: e.target.value })} />
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
               <input type="number" step="0.01" placeholder="Credit limit $" value={editForm.credit_limit} onChange={e => setEditForm({ ...editForm, credit_limit: e.target.value })} />
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--muted)' }}>
+              <input type="checkbox" style={{ width: 'auto' }} checked={editForm.closed} onChange={e => setEditForm({ ...editForm, closed: e.target.checked })} />
+              Card is closed (no longer accepting charges)
+            </label>
             <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
               <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setEditingId(null)}>Cancel</button>
               <button type="submit" className="btn" style={{ flex: 2 }}>Save</button>
@@ -118,7 +122,7 @@ export default function CreditCards({ token }) {
         ) : (
           <div className={`row row-accent ${accentClass(c)}`} key={c.id}>
             <div className="row-main">
-              <div className="row-title">{c.name}</div>
+              <div className="row-title">{c.name}{c.closed ? <span className="chip neutral">closed</span> : null}</div>
               <div className="row-meta" style={{ color: c.status === 'overdue' ? 'var(--red)' : c.status === 'due_today' ? 'var(--amber)' : undefined, fontWeight: c.status === 'overdue' || c.status === 'due_today' ? 700 : 400 }}>
                 {statusLabel(c)}{c.last_paid && c.status !== 'overdue' ? ` · last paid ${c.last_paid.slice(0, 10)}` : ''}
               </div>
@@ -156,9 +160,13 @@ export default function CreditCards({ token }) {
                 <input type="number" step="0.01" placeholder="Balance $ (optional)" value={form.balance} onChange={e => setForm({ ...form, balance: e.target.value })} />
                 <input type="number" step="0.01" placeholder="APR % (optional)" value={form.apr} onChange={e => setForm({ ...form, apr: e.target.value })} />
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                 <input type="number" step="0.01" placeholder="Credit limit $ (optional)" value={form.credit_limit} onChange={e => setForm({ ...form, credit_limit: e.target.value })} />
               </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--muted)' }}>
+                <input type="checkbox" style={{ width: 'auto' }} checked={form.closed} onChange={e => setForm({ ...form, closed: e.target.checked })} />
+                Card is closed (no longer accepting charges)
+              </label>
               <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>Balance and APR power the debt payoff suggestion on the home dashboard.</p>
               <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                 <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowForm(false)}>Cancel</button>

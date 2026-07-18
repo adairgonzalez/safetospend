@@ -27,6 +27,7 @@ try { db.exec('ALTER TABLE credit_cards ADD COLUMN balance REAL'); } catch (e) {
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN apr REAL'); } catch (e) { /* column already exists */ }
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN credit_limit REAL'); } catch (e) { /* column already exists */ }
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN closed INTEGER DEFAULT 0'); } catch (e) { /* column already exists */ }
+try { db.exec('ALTER TABLE credit_cards ADD COLUMN promo_balance REAL'); } catch (e) { /* column already exists */ }
 
 // One-time fixup: an earlier version of the cycle_baselines migration logic
 // carried forward the old ratcheting system's already-corrupted value as a
@@ -148,6 +149,17 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('seed_card_balances
 if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('mark_amazon_closed_v1')) {
   db.prepare('UPDATE credit_cards SET closed=1 WHERE name=?').run('Amazon');
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('mark_amazon_closed_v1');
+}
+
+// Amazon's $2464 balance isn't uniform: per the Synchrony statement, $900.45
+// sits in "6 equal monthly payments, 0% APR" promo plans (paying that down
+// early saves zero interest), and the rest accrues at the card's real
+// 29.99% APR. promo_balance lets the payoff plan split a card's balance
+// into an interest-bearing portion and a zero-interest portion instead of
+// treating the whole thing as one APR.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('seed_amazon_apr_promo_v1')) {
+  db.prepare('UPDATE credit_cards SET apr=?, promo_balance=? WHERE name=?').run(29.99, 900.45, 'Amazon');
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('seed_amazon_apr_promo_v1');
 }
 
 module.exports = db;

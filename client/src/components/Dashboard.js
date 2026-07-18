@@ -194,8 +194,8 @@ export default function Dashboard({ token, onLogout }) {
               {debtPlan.allocations.map((a, i) => (
                 <div className="row row-accent good" key={i}>
                   <div className="row-main">
-                    <div className="row-title">{a.name}{a.payoff && <span className="chip ok">pays it off</span>}</div>
-                    <div className="row-meta">{a.apr != null ? `${a.apr}% APR` : 'APR unknown'}</div>
+                    <div className="row-title">{a.name}{a.promo && <span className="chip neutral">0% promo</span>}{a.payoff && <span className="chip ok">pays it off</span>}</div>
+                    <div className="row-meta">{a.promo ? 'no interest either way' : a.apr != null ? `${a.apr}% APR` : 'APR unknown'}</div>
                   </div>
                   <span className="row-amount">{usd(a.amount)}</span>
                 </div>

@@ -19,24 +19,26 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, minimum, due_day, balance, apr, credit_limit, closed } = req.body;
+  const { name, minimum, due_day, balance, apr, credit_limit, closed, promo_balance } = req.body;
   if (!name || typeof minimum !== 'number') return res.status(400).json({ error: 'name and minimum required' });
   const day = due_day ? Math.max(1, Math.min(31, Number(due_day))) : null;
   const bal = typeof balance === 'number' ? balance : null;
   const rate = typeof apr === 'number' ? apr : null;
   const limit = typeof credit_limit === 'number' ? credit_limit : null;
-  const info = db.prepare('INSERT INTO credit_cards (user_id, name, minimum, due_day, balance, apr, credit_limit, closed) VALUES (?,?,?,?,?,?,?,?)').run(req.user.userId, name, minimum, day, bal, rate, limit, closed ? 1 : 0);
+  const promo = typeof promo_balance === 'number' ? promo_balance : null;
+  const info = db.prepare('INSERT INTO credit_cards (user_id, name, minimum, due_day, balance, apr, credit_limit, closed, promo_balance) VALUES (?,?,?,?,?,?,?,?,?)').run(req.user.userId, name, minimum, day, bal, rate, limit, closed ? 1 : 0, promo);
   res.json({ success: true, id: info.lastInsertRowid });
 });
 
 router.put('/:id', (req, res) => {
-  const { name, minimum, due_day, balance, apr, credit_limit, closed } = req.body;
+  const { name, minimum, due_day, balance, apr, credit_limit, closed, promo_balance } = req.body;
   const day = due_day ? Math.max(1, Math.min(31, Number(due_day))) : null;
   const bal = typeof balance === 'number' ? balance : null;
   const rate = typeof apr === 'number' ? apr : null;
   const limit = typeof credit_limit === 'number' ? credit_limit : null;
-  db.prepare('UPDATE credit_cards SET name=?, minimum=?, due_day=?, balance=?, apr=?, credit_limit=?, closed=? WHERE id=? AND user_id=?')
-    .run(name, minimum, day, bal, rate, limit, closed ? 1 : 0, req.params.id, req.user.userId);
+  const promo = typeof promo_balance === 'number' ? promo_balance : null;
+  db.prepare('UPDATE credit_cards SET name=?, minimum=?, due_day=?, balance=?, apr=?, credit_limit=?, closed=?, promo_balance=? WHERE id=? AND user_id=?')
+    .run(name, minimum, day, bal, rate, limit, closed ? 1 : 0, promo, req.params.id, req.user.userId);
   res.json({ success: true });
 });
 

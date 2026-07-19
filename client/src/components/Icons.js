@@ -56,3 +56,6 @@ export const TrendDownIcon = (p) => (
 export const CalendarIcon = (p) => (
   <svg {...base} {...p}><rect x="3.5" y="5" width="17" height="16" rx="2.5" /><path d="M8 3v4M16 3v4M3.5 10h17" /></svg>
 );
+export const LockIcon = (p) => (
+  <svg {...base} {...p}><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" /></svg>
+);

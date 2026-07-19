@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PlaidLink from './PlaidLink';
-import VerificationPanel from './VerificationPanel';
+import PaycheckPlan from './PaycheckPlan';
 import AnimatedNumber from './AnimatedNumber';
-import { RefreshIcon, ArrowUpIcon, WarningIcon, CalendarIcon, TrendDownIcon } from './Icons';
-import { computeDebtPlan } from '../utils/debtPlan';
+import { RefreshIcon, ArrowUpIcon, WarningIcon, CalendarIcon } from './Icons';
 
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
@@ -116,25 +115,13 @@ export default function Dashboard({ token, onLogout }) {
   const daysLeft = Math.max(0, Math.ceil((new Date(data.nextPayday) - new Date()) / 86400000));
   const cyclePct = Math.max(0, Math.min(100, 100 - (daysLeft / 14) * 100));
 
-  // Upcoming bills = every bill in this cycle's checklist (rent, Tesla,
-  // insurance, card minimums, etc.) plus credit card due dates landing
-  // before the next paycheck (overdue/due-today always included regardless
-  // of date). Checklist bills don't carry an exact calendar due date - they
-  // get transferred right after payday - so they're tagged with the
-  // paycheck date and naturally sort to the front of the list.
-  const billItems = (data.checklist || []).map((c, i) => ({
-    key: `bill-${i}`, name: c.category, amount: c.amount, dateStr: data.paycheckDate,
-    label: c.autopay ? 'auto-pay' : 'this cycle', autopay: c.autopay, tone: '',
-  }));
-  const cardItems = cards
-    .filter(c => c.status === 'overdue' || c.status === 'due_today' || (c.status === 'upcoming' && c.dateStr && c.dateStr <= data.nextPayday))
-    .map((c, i) => ({
-      key: `card-${i}`, name: c.name, amount: c.minimum, dateStr: c.dateStr,
-      label: cardStatusLabel(c), autopay: false, tone: c.status === 'overdue' ? 'bad' : c.status === 'due_today' ? 'warn' : '',
-    }));
-  const upcomingBills = [...billItems, ...cardItems].sort((a, b) => (a.dateStr || '').localeCompare(b.dateStr || ''));
-
-  const debtPlan = computeDebtPlan(cards, data.safeToSpend);
+  // Cards due later this cycle but not actionable yet - overdue/due-today
+  // cards live in the Paycheck Plan checklist below instead, so they aren't
+  // duplicated here.
+  const upcomingBills = cards
+    .filter(c => c.status === 'upcoming' && c.dateStr && c.dateStr <= data.nextPayday)
+    .map((c, i) => ({ key: `card-${i}`, name: c.name, amount: c.minimum, dateStr: c.dateStr, label: cardStatusLabel(c) }))
+    .sort((a, b) => (a.dateStr || '').localeCompare(b.dateStr || ''));
 
   return shell(
     <>
@@ -161,14 +148,16 @@ export default function Dashboard({ token, onLogout }) {
         </div>
       )}
 
+      <PaycheckPlan token={token} data={data} cards={cards} reload={load} />
+
       {upcomingBills.length > 0 && (
         <div className="card">
           <h3 className="section-title"><CalendarIcon width={14} height={14} />Upcoming bills</h3>
           {upcomingBills.map((item) => (
-            <div className={`row row-accent ${item.tone}`} key={item.key}>
+            <div className="row" key={item.key}>
               <div className="row-main">
-                <div className="row-title">{item.name}{item.autopay && <span className="chip neutral">auto-pay</span>}</div>
-                <div className="row-meta" style={{ color: item.tone === 'bad' ? 'var(--red)' : undefined, fontWeight: item.tone === 'bad' ? 700 : 400 }}>{item.label}</div>
+                <div className="row-title">{item.name}</div>
+                <div className="row-meta">{item.label}</div>
               </div>
               <span className="row-amount">{usd(item.amount)}</span>
             </div>
@@ -176,40 +165,6 @@ export default function Dashboard({ token, onLogout }) {
           <div className="link-row" style={{ marginTop: 4 }}>
             <span className="quiet" style={{ cursor: 'pointer' }} onClick={() => navigate('/cards')}>See all cards →</span>
           </div>
-        </div>
-      )}
-
-      <VerificationPanel token={token} checklist={data.checklist} />
-
-      {debtPlan.debts.length > 0 && (
-        <div className="card">
-          <h3 className="section-title"><TrendDownIcon width={14} height={14} />Best use of leftover money for debt</h3>
-          {debtPlan.pool <= 0 ? (
-            <p className="muted" style={{ fontSize: 13 }}>Nothing safe to spend right now, so there's no extra to put toward debt this cycle.</p>
-          ) : (
-            <>
-              <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>
-                Putting your {usd(debtPlan.pool)} safe-to-spend toward the highest-interest balances first minimizes what you pay in interest overall.
-              </p>
-              {debtPlan.allocations.map((a, i) => (
-                <div className="row row-accent good" key={i}>
-                  <div className="row-main">
-                    <div className="row-title">{a.name}{a.promo && <span className="chip neutral">0% promo</span>}{a.payoff && <span className="chip ok">pays it off</span>}</div>
-                    <div className="row-meta">{a.promo ? 'no interest either way' : a.apr != null ? `${a.apr}% APR` : 'APR unknown'}</div>
-                  </div>
-                  <span className="row-amount">{usd(a.amount)}</span>
-                </div>
-              ))}
-              {debtPlan.unallocated > 0.01 && (
-                <div className="row"><span className="muted">Left over after clearing all balances</span><span className="row-amount">{usd(debtPlan.unallocated)}</span></div>
-              )}
-              {debtPlan.missingApr && (
-                <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-                  Some cards are missing an interest rate — <span className="quiet" style={{cursor:'pointer'}} onClick={() => navigate('/cards')}>add it</span> for a more accurate order.
-                </p>
-              )}
-            </>
-          )}
         </div>
       )}
 

@@ -3,6 +3,7 @@ const router = express.Router();
 const plaidClient = require('../plaidClient');
 const db = require('../db');
 const { isTransfer, detectPaycheck } = require('../paycheck');
+const { detectCardPayments } = require('../cardPaymentDetect');
 
 async function getTxns(accessToken, start, end) {
   const res = await plaidClient.transactionsGet({
@@ -27,6 +28,16 @@ router.get('/safe-to-spend', async (req, res) => {
       return res.json({ error: 'Plaid is still importing your transactions (first sync takes a minute or two). Hit refresh shortly.', retryable: true });
     }
     return res.status(500).json({ error: p?.error_message || e.message, error_code: p?.error_code });
+  }
+
+  // Piggybacks on the transactions already pulled for this load - no extra
+  // Plaid calls, so no added billing exposure - to auto-mark any card whose
+  // minimum payment shows up as a matching outgoing transaction.
+  const userCards = db.prepare('SELECT * FROM credit_cards WHERE user_id=?').all(req.user.userId);
+  const paidCardIds = detectCardPayments(txns, userCards);
+  if (paidCardIds.length) {
+    const markPaid = db.prepare("UPDATE credit_cards SET last_paid=datetime('now') WHERE id=?");
+    for (const id of paidCardIds) markPaid.run(id);
   }
 
   const paycheck = detectPaycheck(txns);

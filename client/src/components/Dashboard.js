@@ -25,14 +25,17 @@ export default function Dashboard({ token, onLogout }) {
   const load = useCallback(() => {
     setLoading(true);
     const headers = { Authorization: `Bearer ${token}` };
-    Promise.all([
-      fetch('/api/transactions/safe-to-spend', { headers }).then(r => r.json()),
-      fetch('/api/cards', { headers }).then(r => r.json()).catch(() => []),
-    ]).then(([d, c]) => {
-      setData(d);
-      setCards(Array.isArray(c) ? c : []);
-      setLoading(false);
-    }).catch(e => { setData({ error: `Could not reach server: ${e.message}` }); setLoading(false); });
+    // Sequential, not parallel: safe-to-spend auto-detects card payments from
+    // the transactions it just pulled and writes last_paid before responding,
+    // so fetching cards afterward (not in a Promise.all alongside it) is what
+    // makes a just-detected payment actually show up on this same refresh.
+    fetch('/api/transactions/safe-to-spend', { headers }).then(r => r.json())
+      .then(d => {
+        setData(d);
+        return fetch('/api/cards', { headers }).then(r => r.json()).catch(() => []);
+      })
+      .then(c => { setCards(Array.isArray(c) ? c : []); setLoading(false); })
+      .catch(e => { setData({ error: `Could not reach server: ${e.message}` }); setLoading(false); });
   }, [token]);
   useEffect(() => { load(); }, [load]);
 

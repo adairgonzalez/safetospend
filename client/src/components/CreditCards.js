@@ -15,10 +15,10 @@ const accentClass = (c) => c.status === 'overdue' || c.status === 'due_today' ? 
 export default function CreditCards({ token }) {
   const [cards, setCards] = useState(null);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '', closed: false, promo_balance: '' });
+  const [form, setForm] = useState({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '', closed: false, promo_balance: '', match_name: '' });
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '', closed: false, promo_balance: '' });
+  const [editForm, setEditForm] = useState({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '', closed: false, promo_balance: '', match_name: '' });
   const navigate = useNavigate();
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -35,15 +35,16 @@ export default function CreditCards({ token }) {
       balance: form.balance ? parseFloat(form.balance) : null, apr: form.apr ? parseFloat(form.apr) : null,
       credit_limit: form.credit_limit ? parseFloat(form.credit_limit) : null, closed: form.closed,
       promo_balance: form.promo_balance !== '' ? parseFloat(form.promo_balance) : null,
+      match_name: form.match_name || null,
     }) })
-      .then(() => { setForm({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '', closed: false, promo_balance: '' }); setShowForm(false); load(); });
+      .then(() => { setForm({ name: '', minimum: '', due_day: '', balance: '', apr: '', credit_limit: '', closed: false, promo_balance: '', match_name: '' }); setShowForm(false); load(); });
   };
   const markPaid = (id) => fetch(`/api/cards/${id}/mark-paid`, { method: 'POST', headers }).then(load);
   const removeCard = (id) => fetch(`/api/cards/${id}`, { method: 'DELETE', headers }).then(load);
 
   const startEdit = (c) => {
     setEditingId(c.id);
-    setEditForm({ name: c.name, minimum: c.minimum, due_day: c.due_day || '', balance: c.balance ?? '', apr: c.apr ?? '', credit_limit: c.credit_limit ?? '', closed: !!c.closed, promo_balance: c.promo_balance ?? '' });
+    setEditForm({ name: c.name, minimum: c.minimum, due_day: c.due_day || '', balance: c.balance ?? '', apr: c.apr ?? '', credit_limit: c.credit_limit ?? '', closed: !!c.closed, promo_balance: c.promo_balance ?? '', match_name: c.match_name || '' });
   };
   const saveEdit = (e) => {
     e.preventDefault();
@@ -53,6 +54,7 @@ export default function CreditCards({ token }) {
       balance: editForm.balance !== '' ? parseFloat(editForm.balance) : null, apr: editForm.apr !== '' ? parseFloat(editForm.apr) : null,
       credit_limit: editForm.credit_limit !== '' ? parseFloat(editForm.credit_limit) : null, closed: editForm.closed,
       promo_balance: editForm.promo_balance !== '' ? parseFloat(editForm.promo_balance) : null,
+      match_name: editForm.match_name || null,
     }) })
       .then(() => { setEditingId(null); load(); });
   };
@@ -113,6 +115,12 @@ export default function CreditCards({ token }) {
               <input type="number" step="0.01" placeholder="Credit limit $" value={editForm.credit_limit} onChange={e => setEditForm({ ...editForm, credit_limit: e.target.value })} />
               <input type="number" step="0.01" placeholder="0% promo balance $" value={editForm.promo_balance} onChange={e => setEditForm({ ...editForm, promo_balance: e.target.value })} />
             </div>
+            <div className="field">
+              <input placeholder="Payment match text (e.g. ROBINHOOD)" value={editForm.match_name} onChange={e => setEditForm({ ...editForm, match_name: e.target.value })} />
+            </div>
+            <p className="muted" style={{ fontSize: 12, margin: '-4px 0 10px' }}>
+              Text from your checking account's transaction description for this card's payment — check Capital One for the exact wording. When a matching debit posts on or after the due date, it's auto-marked paid.
+            </p>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--muted)' }}>
               <input type="checkbox" style={{ width: 'auto' }} checked={editForm.closed} onChange={e => setEditForm({ ...editForm, closed: e.target.checked })} />
               Card is closed (no longer accepting charges)
@@ -125,7 +133,7 @@ export default function CreditCards({ token }) {
         ) : (
           <div className={`row row-accent ${accentClass(c)}`} key={c.id}>
             <div className="row-main">
-              <div className="row-title">{c.name}{c.closed ? <span className="chip neutral">closed</span> : null}</div>
+              <div className="row-title">{c.name}{c.closed ? <span className="chip neutral">closed</span> : null}{c.match_name ? <span className="chip neutral">auto-detect</span> : null}</div>
               <div className="row-meta" style={{ color: c.status === 'overdue' ? 'var(--red)' : c.status === 'due_today' ? 'var(--amber)' : undefined, fontWeight: c.status === 'overdue' || c.status === 'due_today' ? 700 : 400 }}>
                 {statusLabel(c)}{c.last_paid && c.status !== 'overdue' ? ` · last paid ${c.last_paid.slice(0, 10)}` : ''}
               </div>
@@ -168,11 +176,14 @@ export default function CreditCards({ token }) {
                 <input type="number" step="0.01" placeholder="Credit limit $ (optional)" value={form.credit_limit} onChange={e => setForm({ ...form, credit_limit: e.target.value })} />
                 <input type="number" step="0.01" placeholder="0% promo balance $ (optional)" value={form.promo_balance} onChange={e => setForm({ ...form, promo_balance: e.target.value })} />
               </div>
+              <div className="field">
+                <input placeholder="Payment match text (optional)" value={form.match_name} onChange={e => setForm({ ...form, match_name: e.target.value })} />
+              </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--muted)' }}>
                 <input type="checkbox" style={{ width: 'auto' }} checked={form.closed} onChange={e => setForm({ ...form, closed: e.target.checked })} />
                 Card is closed (no longer accepting charges)
               </label>
-              <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>Balance and APR power the debt payoff suggestion on the home dashboard.</p>
+              <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>Balance and APR power the debt payoff suggestion. Payment match text (from your checking transaction description) auto-marks this card paid instead of needing a manual tap.</p>
               <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                 <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowForm(false)}>Cancel</button>
                 <button type="submit" className="btn" style={{ flex: 2 }}>Add card</button>

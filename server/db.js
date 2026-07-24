@@ -28,6 +28,7 @@ try { db.exec('ALTER TABLE credit_cards ADD COLUMN apr REAL'); } catch (e) { /* 
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN credit_limit REAL'); } catch (e) { /* column already exists */ }
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN closed INTEGER DEFAULT 0'); } catch (e) { /* column already exists */ }
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN promo_balance REAL'); } catch (e) { /* column already exists */ }
+try { db.exec('ALTER TABLE credit_cards ADD COLUMN match_name TEXT'); } catch (e) { /* column already exists */ }
 
 // One-time fixup: an earlier version of the cycle_baselines migration logic
 // carried forward the old ratcheting system's already-corrupted value as a

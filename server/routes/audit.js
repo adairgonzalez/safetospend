@@ -20,7 +20,7 @@ router.post('/review', async (req, res) => {
 
   try {
     const response = await client.messages.create({
-      model: 'claude-opus-4-8',
+      model: 'claude-sonnet-5',
       max_tokens: 1024,
       thinking: { type: 'adaptive' },
       output_config: { effort: 'medium' },

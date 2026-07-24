@@ -1,16 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WarningIcon, SparkleIcon, ClockIcon, WalletIcon } from './Icons';
+import { buildFinancialSummary } from '../utils/financialSummary';
 
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const dayMs = 86400000;
-
-// Date objects representing a civil calendar date (today) must format using
-// local fields - .toISOString() converts to UTC first, which silently shows
-// tomorrow's date once evening rolls past UTC midnight in any timezone
-// behind UTC (all of North America). Card due dates come pre-formatted as
-// dateStr from the server (server/cardStatus.js) for the same reason.
-const localISODate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const cardStatusLabel = (c) => {
   if (c.status === 'overdue') return `${c.daysOverdue} day${c.daysOverdue === 1 ? '' : 's'} overdue`;
@@ -97,65 +91,8 @@ export default function Insights({ token }) {
   const billsBalance = billsAccounts[0]?.balance ?? null;
   const availableBuffer = billsBalance != null ? billsBalance - dueSoonTotal : null;
 
-  const buildSummary = () => {
-    const lines = [];
-    lines.push(`SAFE TO SPEND — Financial Snapshot (${localISODate(today)})`);
-    lines.push('');
-    lines.push(`Pay cycle: ${data.paycheckDate} → ${data.nextPayday} (day ${daysElapsed} of ${daysTotal}, ${daysLeft} left)`);
-    lines.push(`Paycheck: ${usd(data.paycheckAmount)}`);
-    lines.push(`Bills set aside: ${usd(data.paycheckAmount - data.discretionaryBudget)}`);
-    lines.push(`Spent so far: ${usd(data.totalSpent)}`);
-    lines.push(`Safe to spend right now: ${usd(data.safeToSpend)}`);
-    if (data.carryoverDeficit < 0) lines.push(`(includes ${usd(data.carryoverDeficit)} carried over from last cycle's shortfall)`);
-    lines.push('');
-    lines.push(`Pace: ${usd(spendRate)}/day so far vs ${usd(budgetPaceRate)}/day budget pace — ${paceLabel}`);
-    lines.push(`Projected total spend by payday at this rate: ${usd(projectedSpend)}`);
-    lines.push(`Projected safe-to-spend at next payday: ${usd(projectedSafe)}`);
-    if (verify?.details?.length) {
-      lines.push('');
-      lines.push('Bills status:');
-      verify.details.forEach(d => lines.push(`- ${d.category}: ${d.status}`));
-    }
-    if (topExpenses.length) {
-      lines.push('');
-      lines.push('Biggest expenses this cycle:');
-      topExpenses.forEach((t, i) => lines.push(`${i + 1}. ${t.name} — ${usd(t.amount)} (${t.date})`));
-    }
-    if (overdueCards.length) {
-      lines.push('');
-      lines.push('OVERDUE cards:');
-      overdueCards.forEach(c => lines.push(`- ${c.name}: ${usd(c.minimum)}, ${c.daysOverdue} day(s) overdue`));
-    }
-    if (cardsDueSoon.length) {
-      lines.push('');
-      lines.push(`Card minimums due before next payday (${data.nextPayday}) — total ${usd(dueSoonTotal)}:`);
-      cardsDueSoon.forEach(c => lines.push(`- ${c.name}: ${usd(c.minimum)}, ${cardStatusLabel(c)}`));
-    }
-    if (billsBalance != null) {
-      lines.push('');
-      lines.push(`Bills and Debt balance: ${usd(billsBalance)} — reserved for cards above: ${usd(dueSoonTotal)} — available buffer: ${usd(availableBuffer)}`);
-    }
-    if (data.reimbursements?.length) {
-      lines.push('');
-      lines.push('Reimbursements:');
-      data.reimbursements.forEach(r => lines.push(`- ${r.name} — ${usd(r.amount)} (${r.received ? 'received' : 'pending'})`));
-    }
-    if (history.length) {
-      lines.push('');
-      lines.push('Recent past cycles:');
-      history.forEach(h => lines.push(`- ${h.pay_date}: paycheck ${usd(h.paycheck_amount)}, spent ${usd(h.total_spent)}, ended with ${usd(h.safe_to_spend)} safe to spend`));
-    }
-    billsAccounts.forEach(acct => {
-      lines.push('');
-      lines.push(`${acct.name}${acct.mask ? ` (…${acct.mask})` : ''} — current balance ${usd(acct.balance)}:`);
-      acct.activity.slice(0, 15).forEach(t => {
-        lines.push(`- ${t.date}: ${t.name} ${t.amount >= 0 ? '+' : ''}${usd(t.amount)}${t.isIncomingTransfer ? ' (transfer in)' : ''}`);
-      });
-    });
-    lines.push('');
-    lines.push('I want financial guidance based on this — ');
-    return lines.join('\n');
-  };
+  const buildSummary = () => buildFinancialSummary({ data, verify, history, billsAccounts, cards })
+    + '\n\nI want financial guidance based on this — ';
 
   const copySummary = () => {
     navigator.clipboard.writeText(buildSummary()).then(() => {

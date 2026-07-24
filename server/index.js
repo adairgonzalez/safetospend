@@ -11,6 +11,7 @@ const verifyRoutes = require('./routes/verify');
 const insightsRoutes = require('./routes/insights');
 const cardsRoutes = require('./routes/cards');
 const auditRoutes = require('./routes/audit');
+const aiChatRoutes = require('./routes/aiChat');
 const { authMiddleware } = require('./routes/auth');
 
 const app = express();
@@ -24,6 +25,7 @@ app.use('/api/verify', authMiddleware, verifyRoutes);
 app.use('/api/insights', authMiddleware, insightsRoutes);
 app.use('/api/cards', authMiddleware, cardsRoutes);
 app.use('/api/audit', authMiddleware, auditRoutes);
+app.use('/api/ai', authMiddleware, aiChatRoutes);
 const isQA = process.env.PLAID_ENV !== 'production';
 app.get('/api/meta', (req, res) => res.json({ env: process.env.PLAID_ENV || 'sandbox', qa: isQA }));
 

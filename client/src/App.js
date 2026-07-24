@@ -8,6 +8,7 @@ import TransactionsDebug from './components/TransactionsDebug';
 import Insights from './components/Insights';
 import CreditCards from './components/CreditCards';
 import More from './components/More';
+import AiChat from './components/AiChat';
 import BottomNav from './components/BottomNav';
 
 function AppShell({ token, qa, overdueCount, login, logout }) {
@@ -24,6 +25,7 @@ function AppShell({ token, qa, overdueCount, login, logout }) {
         <Route path="/debug" element={token ? <TransactionsDebug token={token} /> : <Navigate to="/" />} />
         <Route path="/insights" element={token ? <Insights token={token} /> : <Navigate to="/" />} />
         <Route path="/cards" element={token ? <CreditCards token={token} /> : <Navigate to="/" />} />
+        <Route path="/ai" element={token ? <AiChat token={token} /> : <Navigate to="/" />} />
         <Route path="/more" element={token ? <More onLogout={logout} /> : <Navigate to="/" />} />
       </Routes>
       {showNav && <BottomNav overdueCount={overdueCount} />}

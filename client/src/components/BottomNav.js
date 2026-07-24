@@ -1,12 +1,13 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { HomeIcon, ChartIcon, CardIcon, MoreIcon } from './Icons';
+import { HomeIcon, ChartIcon, CardIcon, SparkleIcon, MoreIcon } from './Icons';
 
 export default function BottomNav({ overdueCount = 0 }) {
   const items = [
     { to: '/dashboard', label: 'Home', Icon: HomeIcon },
     { to: '/insights', label: 'Insights', Icon: ChartIcon },
     { to: '/cards', label: 'Cards', Icon: CardIcon, badge: overdueCount > 0 },
+    { to: '/ai', label: 'Ask AI', Icon: SparkleIcon },
     { to: '/more', label: 'More', Icon: MoreIcon },
   ];
   return (

@@ -13,13 +13,22 @@ const setState = (k, v) => db.prepare('INSERT OR REPLACE INTO app_state (key, va
 
 const usd = (n) => `$${Number(n).toFixed(2)}`;
 
+// ntfy's Title header travels as a raw HTTP header, which fetch only allows
+// to contain Latin-1 bytes - any emoji (and some symbols, like the warning
+// sign) throw a ByteString conversion error and silently drop the whole
+// notification. The message body has no such restriction, so move any
+// emoji there instead of just deleting it.
+const NON_ASCII_RE = /[^\x00-\x7F]/g;
 async function notify(title, message, priority = 'default') {
   if (!TOPIC) return;
+  const emoji = (title.match(NON_ASCII_RE) || []).join('');
+  const cleanTitle = title.replace(NON_ASCII_RE, '').trim();
+  const body = emoji ? `${emoji} ${message}` : message;
   try {
     await fetch(`https://ntfy.sh/${encodeURIComponent(TOPIC)}`, {
       method: 'POST',
-      body: message,
-      headers: { Title: title, Priority: priority },
+      body,
+      headers: { Title: cleanTitle, Priority: priority },
     });
   } catch (e) { console.error('ntfy notify failed:', e.message); }
 }

@@ -62,3 +62,9 @@ export const LockIcon = (p) => (
 export const PlusIcon = (p) => (
   <svg {...base} {...p}><path d="M12 5v14M5 12h14" /></svg>
 );
+export const CameraIcon = (p) => (
+  <svg {...base} {...p}><path d="M4 8a1 1 0 0 1 1-1h2.2l.9-1.5a1 1 0 0 1 .86-.5h6.08a1 1 0 0 1 .86.5L16.8 7H19a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8z" /><circle cx="12" cy="13" r="3.5" /></svg>
+);
+export const XIcon = (p) => (
+  <svg {...base} {...p}><path d="M6 6l12 12M18 6L6 18" /></svg>
+);

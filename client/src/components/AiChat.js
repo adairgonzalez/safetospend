@@ -1,9 +1,36 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { buildFinancialSummary } from '../utils/financialSummary';
-import { SparkleIcon, PlusIcon, ListIcon } from './Icons';
+import { SparkleIcon, PlusIcon, ListIcon, CameraIcon, XIcon } from './Icons';
 
 const STORAGE_KEY = 'sts_ai_chat_id';
+const MAX_PHOTO_DIM = 1600;
+
+// Downscales/re-encodes the picked file to keep uploads small and OCR fast -
+// a phone camera photo can be several MB straight out of the camera.
+const photoToDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error('Could not read that file'));
+  reader.onload = () => {
+    const img = new Image();
+    img.onerror = () => reject(new Error('That file doesn\'t look like an image'));
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > MAX_PHOTO_DIM || height > MAX_PHOTO_DIM) {
+        const scale = MAX_PHOTO_DIM / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
 
 // Unlike the Paycheck Plan auditor (gated behind the checklist by design),
 // this is a general, always-available "ask anything about my finances"
@@ -24,8 +51,11 @@ export default function AiChat({ token }) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
+  const [photo, setPhoto] = useState(null);
+  const [photoError, setPhotoError] = useState(null);
   const navigate = useNavigate();
   const bottomRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
@@ -96,24 +126,40 @@ export default function AiChat({ token }) {
     });
   };
 
+  const pickPhoto = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoError(null);
+    photoToDataUrl(file).then(setPhoto).catch(err => setPhotoError(err.message));
+  };
+
   const send = (e) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || sending || !summary) return;
-    const nextMessages = [...messages, { role: 'user', content: text }];
+    if ((!text && !photo) || sending || !summary) return;
+    const content = text || '📷 Photo';
+    const nextMessages = [...messages, { role: 'user', content }];
     setMessages(nextMessages);
     setInput('');
+    const imageToSend = photo;
+    setPhoto(null);
+    setPhotoError(null);
     setSending(true);
     setSendError(null);
     fetch('/api/ai/chat', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ summary, messages: nextMessages, chatId }),
+      body: JSON.stringify({ summary, messages: nextMessages, chatId, image: imageToSend || undefined }),
     })
       .then(r => r.json())
       .then(d => {
         if (d.error) { setSendError(d.error); setSending(false); return; }
-        setMessages(m => [...m, { role: 'assistant', content: d.reply }]);
+        setMessages(m => {
+          const updated = [...m];
+          if (d.userMessage) updated[updated.length - 1] = { role: 'user', content: d.userMessage };
+          return [...updated, { role: 'assistant', content: d.reply }];
+        });
         if (d.chatId && d.chatId !== chatId) {
           setChatId(d.chatId);
           localStorage.setItem(STORAGE_KEY, String(d.chatId));
@@ -177,17 +223,45 @@ export default function AiChat({ token }) {
       </div>
 
       {sendError && <p className="error-text" style={{ fontSize: 13 }}>{sendError}</p>}
+      {photoError && <p className="error-text" style={{ fontSize: 13 }}>{photoError}</p>}
 
       <form className="chat-input-bar" onSubmit={send}>
-        <input
-          placeholder={summary ? 'Ask about your finances…' : 'Loading your numbers…'}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          disabled={!summary}
-        />
-        <button type="submit" className="btn btn-icon" disabled={!summary || !input.trim() || sending} aria-label="Send">
-          <SparkleIcon width={18} height={18} />
-        </button>
+        {photo && (
+          <div className="chat-photo-preview">
+            <img src={photo} alt="Attached" />
+            <button type="button" className="chat-photo-remove" onClick={() => setPhoto(null)} aria-label="Remove photo">
+              <XIcon width={14} height={14} />
+            </button>
+          </div>
+        )}
+        <div className="chat-input-row">
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            ref={fileInputRef}
+            onChange={pickPhoto}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!summary}
+            aria-label="Attach photo"
+          >
+            <CameraIcon width={18} height={18} />
+          </button>
+          <input
+            placeholder={summary ? 'Ask about your finances…' : 'Loading your numbers…'}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            disabled={!summary}
+          />
+          <button type="submit" className="btn btn-icon" disabled={!summary || (!input.trim() && !photo) || sending} aria-label="Send">
+            <SparkleIcon width={18} height={18} />
+          </button>
+        </div>
       </form>
     </div>
   );

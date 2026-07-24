@@ -16,6 +16,10 @@ const { authMiddleware } = require('./routes/auth');
 
 const app = express();
 app.use(cors());
+// Ask AI chat accepts an optional photo attachment (base64 data URL), so it
+// needs a larger body limit than the rest of the API - scoped to this one
+// path so other routes keep the tighter default.
+app.use('/api/ai', express.json({ limit: '8mb' }));
 app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/plaid', authMiddleware, plaidRoutes);

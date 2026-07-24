@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db');
 const { isConfigured, chatCompletion } = require('../deepseekClient');
 const { getAiUsage, recordAiUsage } = require('../aiUsage');
+const { extractTextFromDataUrl } = require('../ocr');
 
 // Same debt-first priorities as the Paycheck Plan auditor, just in a
 // conversational voice instead of an audit verdict - the two features
@@ -47,7 +48,7 @@ router.post('/chat', async (req, res) => {
     return res.status(503).json({ error: 'AI chat is not configured. Set DEEPSEEK_API_KEY in the server .env file to enable it.' });
   }
 
-  const { summary, messages, chatId } = req.body || {};
+  const { summary, messages, chatId, image } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages array required' });
   }
@@ -56,6 +57,19 @@ router.post('/chat', async (req, res) => {
     .map(m => ({ role: m.role, content: m.content }));
   if (!cleanMessages.length || cleanMessages[0].role !== 'user') {
     return res.status(400).json({ error: 'messages must start with a user message' });
+  }
+
+  // A photo attachment is read locally with OCR (no API cost, doesn't touch
+  // the DeepSeek usage cap) and folded into the latest message's text so
+  // the model - and any later turns in this chat - can see what it said.
+  if (typeof image === 'string' && image) {
+    try {
+      const ocrText = await extractTextFromDataUrl(image);
+      const last = cleanMessages[cleanMessages.length - 1];
+      last.content += `\n\n[Text extracted from attached photo]\n${ocrText || '(no readable text found in the photo)'}`;
+    } catch (e) {
+      return res.status(400).json({ error: `Could not read photo: ${e.message}` });
+    }
   }
 
   // If a chatId was passed, it must actually belong to this user - a chat
@@ -87,7 +101,7 @@ router.post('/chat', async (req, res) => {
     insertMsg.run(chat.id, 'user', latestUserMessage);
     insertMsg.run(chat.id, 'assistant', text);
 
-    res.json({ reply: text, chatId: chat.id });
+    res.json({ reply: text, chatId: chat.id, userMessage: latestUserMessage });
   } catch (e) {
     console.error('AI chat request failed:', e);
     res.status(502).json({ error: `AI chat request failed: ${e.message}` });

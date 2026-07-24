@@ -18,6 +18,7 @@ const cardStatusLabel = (c) => {
 export default function PaycheckPlan({ token, data, cards, reload }) {
   const [verify, setVerify] = useState(null);
   const [verifyLoading, setVerifyLoading] = useState(true);
+  const [verifyError, setVerifyError] = useState(null);
   const [auditText, setAuditText] = useState(null);
   const [auditError, setAuditError] = useState(null);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -27,9 +28,24 @@ export default function PaycheckPlan({ token, data, cards, reload }) {
 
   const loadVerify = useCallback(() => {
     setVerifyLoading(true);
+    setVerifyError(null);
     fetch('/api/verify/verify-transfers', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(v => { setVerify(v); setVerifyLoading(false); })
-      .catch(() => setVerifyLoading(false));
+      .then(r => r.json())
+      .then(v => {
+        // A response with no details array is a real failure (Plaid error,
+        // no bank linked, paycheck not detected on this endpoint's own
+        // fetch), not "still loading" - surface it instead of leaving every
+        // checklist item stuck on a "checking…" placeholder forever, which
+        // is indistinguishable from actually still loading.
+        if (v?.error || !Array.isArray(v?.details)) {
+          setVerifyError(v?.error || 'Bill status check came back empty — tap to retry.');
+          setVerify(null);
+        } else {
+          setVerify(v);
+        }
+        setVerifyLoading(false);
+      })
+      .catch(e => { setVerifyError(`Could not reach server: ${e.message}`); setVerifyLoading(false); });
   }, [token]);
 
   useEffect(() => { loadVerify(); }, [loadVerify]);
@@ -50,9 +66,14 @@ export default function PaycheckPlan({ token, data, cards, reload }) {
   }
 
   const billItems = (data.checklist || []).map((c, i) => {
-    const detail = verify?.details?.find(d => d.category === c.category);
+    // Bills sharing one savings account come back from verify as a single
+    // combined entry, e.g. "Tesla + Electricity" - split on that join
+    // separator instead of comparing the whole label, or a bill sharing an
+    // account with another never matches its own name.
+    const detail = verify?.details?.find(d => d.category.split(' + ').includes(c.category));
     const done = c.autopay || detail?.status === 'Transferred';
-    return { key: `bill-${i}`, kind: 'bill', name: c.category, amount: c.amount, done, note: c.autopay ? 'auto-pay' : (detail ? detail.status : 'checking…') };
+    const note = c.autopay ? 'auto-pay' : detail ? detail.status : (verifyError ? 'status unknown' : 'checking…');
+    return { key: `bill-${i}`, kind: 'bill', name: c.category, amount: c.amount, done, note };
   });
 
   const cardItems = (cards || [])
@@ -91,6 +112,16 @@ export default function PaycheckPlan({ token, data, cards, reload }) {
   return (
     <div className="card">
       <h3 className="section-title"><ClockIcon width={14} height={14} />Paycheck plan</h3>
+
+      {verifyError && (
+        <div className="banner danger" style={{ marginBottom: 10 }}>
+          <div>
+            <p className="banner-title" style={{ color: 'var(--red)' }}>Couldn't check bill status</p>
+            <p className="banner-body">{verifyError}</p>
+            <button className="quiet" style={{ marginTop: 4 }} onClick={loadVerify}>Retry</button>
+          </div>
+        </div>
+      )}
 
       {items.length === 0 && (
         <p className="muted" style={{ fontSize: 13 }}>Nothing due right now — everything's handled.</p>

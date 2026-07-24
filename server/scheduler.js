@@ -100,7 +100,12 @@ async function tick({ forceRefresh = true, sendReminder = false } = {}) {
     const data = await api('/transactions/safe-to-spend');
     if (!data || data.error) return;
     const payDate = data.paycheckDate;
-    const transferTotal = data.paycheckAmount - data.discretionaryBudget;
+    // Not paycheckAmount - discretionaryBudget: that also folds in autopay
+    // bills (which draft straight from checking, never touching savings)
+    // and any carried-over deficit (which reduces discretionary spending,
+    // not the amount owed to savings). Only non-autopay bills actually need
+    // a manual transfer - same set verify.js checks per account.
+    const transferTotal = db.prepare('SELECT COALESCE(SUM(amount), 0) AS total FROM bills_template WHERE match_name IS NULL').get().total;
 
     if (getState('notified_paycheck') !== payDate) {
       await recordBaselines(payDate);

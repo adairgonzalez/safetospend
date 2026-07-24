@@ -152,6 +152,18 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('mark_amazon_closed
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('mark_amazon_closed_v1');
 }
 
+// The last cycle's recorded safe_to_spend was captured while several bugs
+// in the spending/checklist calculation were still being found and fixed
+// (autopay matching, card-payment detection, etc.) - not trustworthy enough
+// to carry forward as next cycle's starting deficit. Zero out any negative
+// safe_to_spend already on record so nothing carries forward from that
+// period; paycheck/spending totals are left alone so the Insights trend
+// view still shows real history, just not treated as an unpaid deficit.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('clear_stale_carryover_deficit_v1')) {
+  db.prepare('UPDATE cycle_history SET safe_to_spend=0 WHERE safe_to_spend < 0').run();
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('clear_stale_carryover_deficit_v1');
+}
+
 // Amazon's $2464 balance isn't uniform: per the Synchrony statement, $900.45
 // sits in "6 equal monthly payments, 0% APR" promo plans (paying that down
 // early saves zero interest), and the rest accrues at the card's real

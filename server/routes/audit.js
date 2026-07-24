@@ -38,6 +38,7 @@ router.post('/review', async (req, res) => {
     recordAiUsage(req.user.userId);
     res.json({ review: textBlock.text });
   } catch (e) {
+    console.error('Auditor request failed:', e);
     res.status(502).json({ error: `Auditor request failed: ${e.message}` });
   }
 });

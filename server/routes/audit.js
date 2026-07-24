@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getClient } = require('../anthropicClient');
+const { isConfigured, chatCompletion } = require('../deepseekClient');
 const { getAiUsage, recordAiUsage } = require('../aiUsage');
 
 const SYSTEM_PROMPT = `You are a strict, no-nonsense personal financial auditor and planner reviewing one pay cycle for a specific person. You are given JSON describing: their paycheck, the bills/transfers due this cycle and whether each is confirmed handled, any credit cards currently overdue or due today, and a computed debt-payoff plan for their leftover money.
@@ -14,9 +14,8 @@ Your job:
 Plain prose, no markdown headers or bullet lists, under 180 words. Address the user directly as "you".`;
 
 router.post('/review', async (req, res) => {
-  const client = getClient();
-  if (!client) {
-    return res.status(503).json({ error: 'AI auditor is not configured. Set ANTHROPIC_API_KEY in the server .env file to enable it.' });
+  if (!isConfigured()) {
+    return res.status(503).json({ error: 'AI auditor is not configured. Set DEEPSEEK_API_KEY in the server .env file to enable it.' });
   }
 
   const usage = getAiUsage(req.user.userId);
@@ -25,18 +24,14 @@ router.post('/review', async (req, res) => {
   }
 
   try {
-    const response = await client.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 1024,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'medium' },
+    const text = await chatCompletion({
+      model: 'deepseek-chat',
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: JSON.stringify(req.body || {}) }],
+      maxTokens: 1024,
     });
-    const textBlock = response.content.find(b => b.type === 'text');
-    if (!textBlock) return res.status(502).json({ error: 'Auditor returned no text response.' });
     recordAiUsage(req.user.userId);
-    res.json({ review: textBlock.text });
+    res.json({ review: text });
   } catch (e) {
     console.error('Auditor request failed:', e);
     res.status(502).json({ error: `Auditor request failed: ${e.message}` });

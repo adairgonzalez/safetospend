@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { getClient } = require('../anthropicClient');
+const { isConfigured, chatCompletion } = require('../deepseekClient');
 const { getAiUsage, recordAiUsage } = require('../aiUsage');
 
 // Same debt-first priorities as the Paycheck Plan auditor, just in a
@@ -43,9 +43,8 @@ router.delete('/chats/:id', (req, res) => {
 });
 
 router.post('/chat', async (req, res) => {
-  const client = getClient();
-  if (!client) {
-    return res.status(503).json({ error: 'AI chat is not configured. Set ANTHROPIC_API_KEY in the server .env file to enable it.' });
+  if (!isConfigured()) {
+    return res.status(503).json({ error: 'AI chat is not configured. Set DEEPSEEK_API_KEY in the server .env file to enable it.' });
   }
 
   const { summary, messages, chatId } = req.body || {};
@@ -70,20 +69,12 @@ router.post('/chat', async (req, res) => {
   }
 
   try {
-    const response = await client.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 1536,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'medium' },
-      system: [{
-        type: 'text',
-        text: SYSTEM_PREFIX + (typeof summary === 'string' ? summary : '(no snapshot provided)'),
-        cache_control: { type: 'ephemeral' },
-      }],
+    const text = await chatCompletion({
+      model: 'deepseek-chat',
+      system: SYSTEM_PREFIX + (typeof summary === 'string' ? summary : '(no snapshot provided)'),
       messages: cleanMessages,
+      maxTokens: 1536,
     });
-    const textBlock = response.content.find(b => b.type === 'text');
-    if (!textBlock) return res.status(502).json({ error: 'No text response from the assistant.' });
     recordAiUsage(req.user.userId);
 
     const latestUserMessage = cleanMessages[cleanMessages.length - 1].content;
@@ -94,9 +85,9 @@ router.post('/chat', async (req, res) => {
     db.prepare("UPDATE ai_chats SET updated_at=datetime('now') WHERE id=?").run(chat.id);
     const insertMsg = db.prepare('INSERT INTO ai_chat_messages (chat_id, role, content) VALUES (?,?,?)');
     insertMsg.run(chat.id, 'user', latestUserMessage);
-    insertMsg.run(chat.id, 'assistant', textBlock.text);
+    insertMsg.run(chat.id, 'assistant', text);
 
-    res.json({ reply: textBlock.text, chatId: chat.id });
+    res.json({ reply: text, chatId: chat.id });
   } catch (e) {
     console.error('AI chat request failed:', e);
     res.status(502).json({ error: `AI chat request failed: ${e.message}` });

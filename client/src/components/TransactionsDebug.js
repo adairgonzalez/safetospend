@@ -6,6 +6,7 @@ const usd = (n) => Number(n).toLocaleString('en-US', { style: 'currency', curren
 
 export default function TransactionsDebug({ token }) {
   const [txns, setTxns] = useState(null);
+  const [accounts, setAccounts] = useState(null);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState(null);
@@ -16,6 +17,10 @@ export default function TransactionsDebug({ token }) {
       .then(r => r.json())
       .then(d => { if (d.error) setError(d.error); else { setTxns(d); setError(null); } })
       .catch(e => setError(e.message));
+    fetch('/api/plaid/accounts', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setAccounts(Array.isArray(d) ? d : []))
+      .catch(() => setAccounts([]));
   };
 
   useEffect(load, [token]);
@@ -60,6 +65,22 @@ export default function TransactionsDebug({ token }) {
         {webhookMsg && <p className={webhookMsg.startsWith('Failed') ? 'error-text center' : 'muted center'} style={{marginTop:10, marginBottom:0, fontSize:13}}>{webhookMsg}</p>}
         {error && <p className="error-text">{error}</p>}
       </div>
+
+      {accounts?.length > 0 && (
+        <div className="card">
+          <h3 className="section-title">Accounts (for .env SAVINGS_*_ID / PAYCHECK_ACCOUNT_ID)</h3>
+          {accounts.map((a) => (
+            <div className="row" key={a.account_id}>
+              <div className="row-main">
+                <div className="row-title">{a.name}{a.mask ? ` ···${a.mask}` : ''}</div>
+                <div className="row-meta">{a.subtype} · {usd(a.balances?.current ?? 0)}</div>
+                <div className="row-meta" style={{ fontFamily: 'monospace', fontSize: 11, userSelect: 'all', wordBreak: 'break-all' }}>{a.account_id}</div>
+              </div>
+            </div>
+          ))}
+          <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Tap and hold an ID to copy it.</p>
+        </div>
+      )}
 
       {!error && !txns && <p className="muted center">Loading…</p>}
       {txns && txns.length === 0 && <p className="muted center">No transactions returned.</p>}

@@ -14,6 +14,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS cycle_history (user_id INTEGER, pay_date TEXT, paycheck_amount REAL, discretionary_budget REAL, total_spent REAL, safe_to_spend REAL, updated_at TEXT, PRIMARY KEY (user_id, pay_date));
   CREATE TABLE IF NOT EXISTS credit_cards (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, minimum REAL, due_day INTEGER, created_at TEXT DEFAULT (datetime('now')));
   CREATE TABLE IF NOT EXISTS card_notifications (card_id INTEGER, occurrence TEXT, kind TEXT, notified_at TEXT DEFAULT (datetime('now')), PRIMARY KEY (card_id, occurrence, kind));
+  CREATE TABLE IF NOT EXISTS ai_chats (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, title TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')));
+  CREATE TABLE IF NOT EXISTS ai_chat_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER, role TEXT, content TEXT, created_at TEXT DEFAULT (datetime('now')));
 `);
 
 // Marks a bill as auto-paying directly from checking (e.g. a subscription

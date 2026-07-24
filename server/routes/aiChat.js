@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const db = require('../db');
 const { getClient } = require('../anthropicClient');
 const { getAiUsage, recordAiUsage } = require('../aiUsage');
 
@@ -15,13 +16,39 @@ Give a real recommendation with a number attached, not a menu of options or a "i
 Current financial snapshot:
 `;
 
+const titleFrom = (text) => {
+  const trimmed = text.trim().replace(/\s+/g, ' ');
+  return trimmed.length > 48 ? `${trimmed.slice(0, 48)}…` : trimmed;
+};
+
+// List past chats (most recently active first) for the history switcher.
+router.get('/chats', (req, res) => {
+  const chats = db.prepare('SELECT id, title, updated_at FROM ai_chats WHERE user_id=? ORDER BY updated_at DESC').all(req.user.userId);
+  res.json({ chats });
+});
+
+// Full message history for one chat, to rehydrate the client after a
+// navigation or reload instead of losing the conversation.
+router.get('/chats/:id', (req, res) => {
+  const chat = db.prepare('SELECT id, title FROM ai_chats WHERE id=? AND user_id=?').get(req.params.id, req.user.userId);
+  if (!chat) return res.status(404).json({ error: 'Chat not found' });
+  const messages = db.prepare('SELECT role, content FROM ai_chat_messages WHERE chat_id=? ORDER BY id ASC').all(chat.id);
+  res.json({ id: chat.id, title: chat.title, messages });
+});
+
+router.delete('/chats/:id', (req, res) => {
+  const info = db.prepare('DELETE FROM ai_chats WHERE id=? AND user_id=?').run(req.params.id, req.user.userId);
+  if (info.changes) db.prepare('DELETE FROM ai_chat_messages WHERE chat_id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
 router.post('/chat', async (req, res) => {
   const client = getClient();
   if (!client) {
     return res.status(503).json({ error: 'AI chat is not configured. Set ANTHROPIC_API_KEY in the server .env file to enable it.' });
   }
 
-  const { summary, messages } = req.body || {};
+  const { summary, messages, chatId } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages array required' });
   }
@@ -31,6 +58,11 @@ router.post('/chat', async (req, res) => {
   if (!cleanMessages.length || cleanMessages[0].role !== 'user') {
     return res.status(400).json({ error: 'messages must start with a user message' });
   }
+
+  // If a chatId was passed, it must actually belong to this user - a chat
+  // that was deleted (or never existed) starts a fresh one instead of
+  // silently writing messages nowhere.
+  let chat = chatId ? db.prepare('SELECT id, title FROM ai_chats WHERE id=? AND user_id=?').get(chatId) : null;
 
   const usage = getAiUsage(req.user.userId);
   if (!usage.allowed) {
@@ -66,7 +98,18 @@ router.post('/chat', async (req, res) => {
     const textBlock = response.content.find(b => b.type === 'text');
     if (!textBlock) return res.status(502).json({ error: 'No text response from the assistant.' });
     recordAiUsage(req.user.userId);
-    res.json({ reply: textBlock.text });
+
+    const latestUserMessage = cleanMessages[cleanMessages.length - 1].content;
+    if (!chat) {
+      const info = db.prepare('INSERT INTO ai_chats (user_id, title) VALUES (?,?)').run(req.user.userId, titleFrom(latestUserMessage));
+      chat = { id: info.lastInsertRowid };
+    }
+    db.prepare("UPDATE ai_chats SET updated_at=datetime('now') WHERE id=?").run(chat.id);
+    const insertMsg = db.prepare('INSERT INTO ai_chat_messages (chat_id, role, content) VALUES (?,?,?)');
+    insertMsg.run(chat.id, 'user', latestUserMessage);
+    insertMsg.run(chat.id, 'assistant', textBlock.text);
+
+    res.json({ reply: textBlock.text, chatId: chat.id });
   } catch (e) {
     res.status(502).json({ error: `AI chat request failed: ${e.message}` });
   }

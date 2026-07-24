@@ -1,8 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const { getClient } = require('../anthropicClient');
+const { getAiUsage, recordAiUsage } = require('../aiUsage');
 
-const SYSTEM_PREFIX = `You are a knowledgeable, direct personal financial advisor for this specific person, chatting with them in an app built around their real bank data. Use exact numbers from the snapshot below when relevant instead of hedging with generic advice - they can see their own numbers, so vague answers waste their time. Be conversational but substantive: give real answers and recommendations, not disclaimers or "consult a professional" deflections, unless a question is genuinely outside what the data can speak to. Keep answers focused - a few sentences to a short paragraph is usually enough, longer only when the question actually calls for it. No markdown headers or bullet-heavy formatting; write like you're texting someone you're helping, not producing a report.
+// Same debt-first priorities as the Paycheck Plan auditor, just in a
+// conversational voice instead of an audit verdict - the two features
+// should agree on what matters, not just on tone.
+const SYSTEM_PREFIX = `You are this person's personal financial advisor, embedded in the budgeting app that tracks their real paycheck, bills, and credit card debt. Use exact numbers from the snapshot below - they can see their own numbers, so generic advice wastes their time.
+
+Your priorities, in this order: (1) protect money already earmarked for bills and card minimums - never suggest spending it or treating it as available, (2) push toward paying down the highest-APR credit card debt before anything discretionary, the same avalanche logic the app's own debt-payoff plan uses, (3) call out real risk plainly when it's there - a carried-over deficit, spending outrunning pace, a card close to due - not gently, (4) only once debt and bills are actually covered, help them think through discretionary spending or savings goals.
+
+Give a real recommendation with a number attached, not a menu of options or a "it depends" hedge - you have their actual numbers, that's the point of this. No disclaimers, no "consult a financial professional" unless the question is genuinely outside what this data can speak to. Conversational tone, a few sentences to a short paragraph unless the question actually needs more. No markdown headers or bullet-heavy formatting - write like you're texting someone you're actually helping, not producing a report.
 
 Current financial snapshot:
 `;
@@ -22,6 +30,11 @@ router.post('/chat', async (req, res) => {
     .map(m => ({ role: m.role, content: m.content }));
   if (!cleanMessages.length || cleanMessages[0].role !== 'user') {
     return res.status(400).json({ error: 'messages must start with a user message' });
+  }
+
+  const usage = getAiUsage(req.user.userId);
+  if (!usage.allowed) {
+    return res.status(429).json({ error: `Daily AI limit reached (${usage.limit} calls/day, shared with the auditor) — resets at midnight. This caps runaway API cost, not normal use.` });
   }
 
   // Prompt caching: the client resends the full running conversation every
@@ -52,6 +65,7 @@ router.post('/chat', async (req, res) => {
     });
     const textBlock = response.content.find(b => b.type === 'text');
     if (!textBlock) return res.status(502).json({ error: 'No text response from the assistant.' });
+    recordAiUsage(req.user.userId);
     res.json({ reply: textBlock.text });
   } catch (e) {
     res.status(502).json({ error: `AI chat request failed: ${e.message}` });

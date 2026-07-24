@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getClient } = require('../anthropicClient');
+const { getAiUsage, recordAiUsage } = require('../aiUsage');
 
 const SYSTEM_PROMPT = `You are a strict, no-nonsense personal financial auditor and planner reviewing one pay cycle for a specific person. You are given JSON describing: their paycheck, the bills/transfers due this cycle and whether each is confirmed handled, any credit cards currently overdue or due today, and a computed debt-payoff plan for their leftover money.
 
@@ -18,6 +19,11 @@ router.post('/review', async (req, res) => {
     return res.status(503).json({ error: 'AI auditor is not configured. Set ANTHROPIC_API_KEY in the server .env file to enable it.' });
   }
 
+  const usage = getAiUsage(req.user.userId);
+  if (!usage.allowed) {
+    return res.status(429).json({ error: `Daily AI limit reached (${usage.limit} calls/day, shared with Ask AI chat) — resets at midnight. This caps runaway API cost, not normal use.` });
+  }
+
   try {
     const response = await client.messages.create({
       model: 'claude-sonnet-5',
@@ -29,6 +35,7 @@ router.post('/review', async (req, res) => {
     });
     const textBlock = response.content.find(b => b.type === 'text');
     if (!textBlock) return res.status(502).json({ error: 'Auditor returned no text response.' });
+    recordAiUsage(req.user.userId);
     res.json({ review: textBlock.text });
   } catch (e) {
     res.status(502).json({ error: `Auditor request failed: ${e.message}` });

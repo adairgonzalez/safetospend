@@ -72,7 +72,13 @@ export default function PaycheckPlan({ token, data, cards, reload }) {
     // account with another never matches its own name.
     const detail = verify?.details?.find(d => d.category.split(' + ').includes(c.category));
     const done = c.autopay || detail?.status === 'Transferred';
-    const note = c.autopay ? 'auto-pay' : detail ? detail.status : (verifyError ? 'status unknown' : 'checking…');
+    const note = c.autopay
+      ? 'auto-pay'
+      : detail
+        ? (detail.status === 'MISSING' && typeof detail.expected === 'number'
+            ? `MISSING — have ${usd(detail.actual)} of ${usd(detail.expected)} needed`
+            : detail.status)
+        : (verifyError ? 'status unknown' : 'checking…');
     return { key: `bill-${i}`, kind: 'bill', name: c.category, amount: c.amount, done, note };
   });
 

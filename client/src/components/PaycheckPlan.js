@@ -56,6 +56,22 @@ export default function PaycheckPlan({ token, data, cards, reload }) {
       .then(() => { reload(); setMarkingId(null); });
   };
 
+  // Escape hatch for the balance-snapshot check in verify-transfers: if some
+  // of a transfer already went back out to pay the actual bill before the
+  // app ever saw the elevated balance, it can never auto-confirm this cycle
+  // even though the transfer genuinely happened. Lets the user assert it.
+  const markBillTransferred = (category) => {
+    setMarkingId(`bill-${category}`);
+    fetch('/api/verify/mark-transferred', { method: 'POST', headers, body: JSON.stringify({ category }) })
+      .then(r => r.json())
+      .then(d => {
+        setMarkingId(null);
+        if (d.error) { setVerifyError(d.error); return; }
+        loadVerify();
+      })
+      .catch(e => { setMarkingId(null); setVerifyError(e.message); });
+  };
+
   if (!data || verifyLoading) {
     return (
       <div className="card">
@@ -155,6 +171,11 @@ export default function PaycheckPlan({ token, data, cards, reload }) {
                 {item.kind === 'card' && !item.done && (
                   <button className="quiet" onClick={() => markCardPaid(item.id)} disabled={markingId === item.id}>
                     {markingId === item.id ? 'Saving…' : 'Mark paid'}
+                  </button>
+                )}
+                {item.kind === 'bill' && !item.done && (
+                  <button className="quiet" onClick={() => markBillTransferred(item.name)} disabled={markingId === `bill-${item.name}`}>
+                    {markingId === `bill-${item.name}` ? 'Saving…' : 'Mark transferred'}
                   </button>
                 )}
               </div>

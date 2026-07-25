@@ -5,6 +5,15 @@ const db = require('../db');
 const { detectPaycheck } = require('../paycheck');
 const { getTxns } = require('./transactions');
 
+const envMap = {
+  rent: process.env.SAVINGS_RENT_ID,
+  tesla: process.env.SAVINGS_CAR_INSURANCE_ID,
+  insurance: process.env.SAVINGS_CAR_INSURANCE_ID,
+  electricity: process.env.SAVINGS_CAR_INSURANCE_ID,
+  credit_card_minimums: process.env.SAVINGS_CC_MIN_ID,
+  extra_debt_payment: process.env.SAVINGS_DEBT_EXTRA_ID,
+};
+
 router.post('/verify-transfers', async (req, res) => {
   const user = db.prepare('SELECT plaid_access_token FROM users WHERE id=?').get(req.user.userId);
   if (!user?.plaid_access_token) return res.json({ error: 'No bank linked' });
@@ -27,14 +36,6 @@ router.post('/verify-transfers', async (req, res) => {
   const payDate = paycheck.date;
 
   const template = db.prepare('SELECT * FROM bills_template').all();
-  const envMap = {
-    rent: process.env.SAVINGS_RENT_ID,
-    tesla: process.env.SAVINGS_CAR_INSURANCE_ID,
-    insurance: process.env.SAVINGS_CAR_INSURANCE_ID,
-    electricity: process.env.SAVINGS_CAR_INSURANCE_ID,
-    credit_card_minimums: process.env.SAVINGS_CC_MIN_ID,
-    extra_debt_payment: process.env.SAVINGS_DEBT_EXTRA_ID,
-  };
 
   // Several bills can share one savings account, so verify the account's
   // balance rose by the combined total rather than checking bill-by-bill.
@@ -108,6 +109,45 @@ router.post('/verify-transfers', async (req, res) => {
     }
   }
   res.json({ allGood, details });
+});
+
+// Manual escape hatch for a real gap in the balance-snapshot approach above:
+// if some of a transfer already went back out to pay a bill before this
+// endpoint ever ran while the balance was still elevated, the account can
+// never climb high enough again this cycle to auto-verify, even though the
+// transfer genuinely happened. Lets the user assert it directly instead of
+// being stuck for the rest of the pay cycle.
+router.post('/mark-transferred', async (req, res) => {
+  const { category } = req.body || {};
+  if (!category) return res.status(400).json({ error: 'category required' });
+
+  const user = db.prepare('SELECT plaid_access_token FROM users WHERE id=?').get(req.user.userId);
+  if (!user?.plaid_access_token) return res.json({ error: 'No bank linked' });
+
+  let txns;
+  try {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 10);
+    const end = now.toISOString().slice(0, 10);
+    txns = await getTxns(user.plaid_access_token, start, end);
+  } catch (e) {
+    const p = e.response?.data;
+    console.error('mark-transferred fetch failed:', p || e.message);
+    return res.status(500).json({ error: p?.error_message || e.message });
+  }
+
+  const paycheck = detectPaycheck(txns);
+  if (!paycheck) return res.status(400).json({ error: 'No paycheck detected yet this cycle' });
+
+  const key = category.replace(/ /g, '_').toLowerCase();
+  const acctId = envMap[key];
+  if (!acctId || acctId === 'placeholder') {
+    return res.status(400).json({ error: 'No savings account mapped for this bill in .env' });
+  }
+
+  db.prepare("INSERT OR IGNORE INTO verified_transfers (user_id, pay_date, account_id, verified_at) VALUES (?,?,?,datetime('now'))")
+    .run(req.user.userId, paycheck.date, acctId);
+  res.json({ success: true });
 });
 
 module.exports = router;

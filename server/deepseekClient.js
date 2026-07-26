@@ -3,8 +3,17 @@
 // enough. Docs: https://api-docs.deepseek.com
 const BASE_URL = 'https://api.deepseek.com';
 
+// A stray trailing newline/space in the .env value (easy to pick up when
+// pasting a key from a browser) makes it an invalid HTTP header value -
+// Node's fetch throws a cryptic "did not match the expected pattern" on
+// every single call in that case, so trim defensively rather than pass
+// the raw env value straight into a header.
+function getApiKey() {
+  return (process.env.DEEPSEEK_API_KEY || '').trim();
+}
+
 function isConfigured() {
-  return !!process.env.DEEPSEEK_API_KEY;
+  return !!getApiKey();
 }
 
 // system: string. messages: [{role: 'user'|'assistant', content: string}].
@@ -14,7 +23,7 @@ async function chatCompletion({ model = 'deepseek-chat', system, messages, maxTo
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+      Authorization: `Bearer ${getApiKey()}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({

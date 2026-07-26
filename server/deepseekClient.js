@@ -19,7 +19,7 @@ function isConfigured() {
 // system: string. messages: [{role: 'user'|'assistant', content: string}].
 // Returns the assistant's reply text, or throws with a message suitable to
 // show the user directly.
-async function chatCompletion({ model = 'deepseek-chat', system, messages, maxTokens = 1024 }) {
+async function chatCompletion({ model = 'deepseek-v4-flash', system, messages, maxTokens = 1024 }) {
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {

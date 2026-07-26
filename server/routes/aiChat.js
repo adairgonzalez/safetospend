@@ -84,7 +84,7 @@ router.post('/chat', async (req, res) => {
 
   try {
     const text = await chatCompletion({
-      model: 'deepseek-chat',
+      model: 'deepseek-v4-flash',
       system: SYSTEM_PREFIX + (typeof summary === 'string' ? summary : '(no snapshot provided)'),
       messages: cleanMessages,
       maxTokens: 1536,

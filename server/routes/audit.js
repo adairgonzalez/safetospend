@@ -25,7 +25,7 @@ router.post('/review', async (req, res) => {
 
   try {
     const text = await chatCompletion({
-      model: 'deepseek-chat',
+      model: 'deepseek-v4-flash',
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: JSON.stringify(req.body || {}) }],
       maxTokens: 1024,

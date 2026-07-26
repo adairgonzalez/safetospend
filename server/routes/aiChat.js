@@ -75,7 +75,7 @@ router.post('/chat', async (req, res) => {
   // If a chatId was passed, it must actually belong to this user - a chat
   // that was deleted (or never existed) starts a fresh one instead of
   // silently writing messages nowhere.
-  let chat = chatId ? db.prepare('SELECT id, title FROM ai_chats WHERE id=? AND user_id=?').get(chatId) : null;
+  let chat = chatId ? db.prepare('SELECT id, title FROM ai_chats WHERE id=? AND user_id=?').get(chatId, req.user.userId) : null;
 
   const usage = getAiUsage(req.user.userId);
   if (!usage.allowed) {

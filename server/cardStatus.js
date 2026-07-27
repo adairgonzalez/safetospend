@@ -30,6 +30,15 @@ function nextOccurrence(dueDay, today) {
   return candidate;
 }
 
+// The due-day occurrence strictly after the given date's month - always
+// the next cycle, unlike nextOccurrence which can return the SAME date
+// when it's passed today's own due date.
+function occurrenceAfter(dueDay, date) {
+  let y = date.getFullYear(), m = date.getMonth() + 1;
+  if (m > 11) { m = 0; y += 1; }
+  return occurrenceInMonth(y, m, dueDay);
+}
+
 function localISODate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -56,7 +65,11 @@ function getCardStatus(card, now = new Date()) {
   const paidSinceLastDue = untracked || (card.last_paid && localMidnight(new Date(card.last_paid)) >= lastDue);
 
   if (paidSinceLastDue) {
-    const next = nextOccurrence(card.due_day, today);
+    // Always the cycle after lastDue, not "next occurrence >= today" - paying
+    // on the due date itself (today === lastDue) would otherwise make that
+    // lookup land back on today's own already-paid date and report it as
+    // still due, since today does satisfy ">= today".
+    const next = occurrenceAfter(card.due_day, lastDue);
     if (next.getTime() === today.getTime()) return { status: 'due_today', date: next, dateStr: localISODate(next) };
     return { status: 'upcoming', date: next, dateStr: localISODate(next) };
   }
@@ -67,4 +80,4 @@ function getCardStatus(card, now = new Date()) {
   return { status: 'overdue', date: lastDue, dateStr: localISODate(lastDue), daysOverdue };
 }
 
-module.exports = { getCardStatus, mostRecentOccurrence, nextOccurrence, localMidnight, localISODate };
+module.exports = { getCardStatus, mostRecentOccurrence, nextOccurrence, occurrenceAfter, localMidnight, localISODate };

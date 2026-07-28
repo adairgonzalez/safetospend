@@ -81,7 +81,7 @@ export default function PaycheckPlan({ token, data, cards, reload }) {
     );
   }
 
-  const billItems = (data.checklist || []).map((c, i) => {
+  const billItems = (data.checklist || []).filter(c => c.active !== false).map((c, i) => {
     // Bills sharing one savings account come back from verify as a single
     // combined entry, e.g. "Tesla + Electricity" - split on that join
     // separator instead of comparing the whole label, or a bill sharing an

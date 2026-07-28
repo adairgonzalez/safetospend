@@ -140,9 +140,19 @@ export default function Dashboard({ token, onLogout }) {
   // Cards due later this cycle but not actionable yet - overdue/due-today
   // cards live in the Paycheck Plan checklist below instead, so they aren't
   // duplicated here.
-  const upcomingBills = cards
+  const upcomingCards = cards
     .filter(c => c.status === 'upcoming' && c.dateStr && c.dateStr <= data.nextPayday)
-    .map((c, i) => ({ key: `card-${i}`, name: c.name, amount: c.minimum, dateStr: c.dateStr, label: cardStatusLabel(c) }))
+    .map((c, i) => ({ key: `card-${i}`, name: c.name, amount: c.minimum, dateStr: c.dateStr, label: cardStatusLabel(c) }));
+
+  // Bills not due before the next paycheck - the new due-date-aware
+  // scheduling leaves these off this cycle's Paycheck Plan checklist
+  // entirely, so without this they'd be invisible until the cycle they're
+  // actually required in.
+  const upcomingTemplateBills = (data.checklist || [])
+    .filter(c => c.active === false && c.dueDate)
+    .map((c, i) => ({ key: `bill-${i}`, name: c.category, amount: c.amount, dateStr: c.dueDate, label: `due ${c.dueDate}` }));
+
+  const upcomingBills = [...upcomingCards, ...upcomingTemplateBills]
     .sort((a, b) => (a.dateStr || '').localeCompare(b.dateStr || ''));
 
   return shell(

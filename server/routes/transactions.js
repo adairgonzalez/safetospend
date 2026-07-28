@@ -4,7 +4,7 @@ const plaidClient = require('../plaidClient');
 const db = require('../db');
 const { isTransfer, detectPaycheck } = require('../paycheck');
 const { detectCardPayments } = require('../cardPaymentDetect');
-const { nextPaydayFrom, isBillActiveThisCycle } = require('../billSchedule');
+const { nextPaydayFrom, isBillActiveThisCycle, nextBillDueDate } = require('../billSchedule');
 
 async function getTxns(accessToken, start, end) {
   const res = await plaidClient.transactionsGet({
@@ -109,8 +109,10 @@ router.get('/safe-to-spend', async (req, res) => {
     carryoverDeficit: Math.round(carryoverDeficit*100)/100,
     totalSpent: spent,
     nextPayday,
-    checklist: activeBills.map(r => ({
+    checklist: template.map(r => ({
       category: r.category, amount: r.amount, autopay: !!r.match_name || !!r.pass_through,
+      active: isBillActiveThisCycle(r, payDate, nextPayday),
+      dueDate: nextBillDueDate(r, payDate),
       description: r.pass_through
         ? `Funded from outside your paycheck — just make sure it goes out`
         : r.match_name ? `Already budgeted — auto-pays from checking` : `Transfer $${r.amount} to ${r.category}`,

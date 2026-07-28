@@ -2,7 +2,7 @@
 // shared by /safe-to-spend (what to set aside/show on the checklist) and
 // verify-transfers (what a savings account is expected to hold), so they
 // never disagree about which bills are "live" this cycle.
-const { nextOccurrence, localDateFromISO, addDaysISO } = require('./cardStatus');
+const { nextOccurrence, localDateFromISO, localISODate, addDaysISO } = require('./cardStatus');
 
 function nextPaydayFrom(payDate) {
   return addDaysISO(payDate, 14);
@@ -18,4 +18,11 @@ function isBillActiveThisCycle(bill, payDate, nextPayday) {
   return occurrence < localDateFromISO(nextPayday);
 }
 
-module.exports = { nextPaydayFrom, isBillActiveThisCycle };
+// The bill's next due date on/after payDate, as 'YYYY-MM-DD' - null for a
+// bill with no due_day set (nothing single to point at).
+function nextBillDueDate(bill, payDate) {
+  if (!bill.due_day) return null;
+  return localISODate(nextOccurrence(bill.due_day, localDateFromISO(payDate)));
+}
+
+module.exports = { nextPaydayFrom, isBillActiveThisCycle, nextBillDueDate };

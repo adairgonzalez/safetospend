@@ -187,4 +187,23 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('seed_amazon_apr_pr
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('seed_amazon_apr_promo_v1');
 }
 
+// Real due dates worked out by hand in conversation, now that bills are
+// due-date-aware instead of blanket-halved every cycle. Insurance's stored
+// $115 was the old halved-per-paycheck figure; $250 is the real full
+// monthly Tesla insurance premium (matches the mark_insurance_autopay_v1
+// TESLA INSURANCE autopay match already set on this category).
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('set_bill_due_dates_v1')) {
+  db.prepare('UPDATE bills_template SET amount=?, due_day=? WHERE category=?').run(250, 29, 'Insurance');
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('set_bill_due_dates_v1');
+}
+
+// Her insurance payment: she sends the money, so it's a wash against the
+// user's own budget (pass_through) but still worth a due-date reminder.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('add_gf_insurance_bill_v1')) {
+  if (!db.prepare('SELECT 1 FROM bills_template WHERE category=?').get('Gf Insurance')) {
+    db.prepare('INSERT INTO bills_template (category, amount, due_day, pass_through) VALUES (?,?,?,?)').run('Gf Insurance', 207, 18, 1);
+  }
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('add_gf_insurance_bill_v1');
+}
+
 module.exports = db;

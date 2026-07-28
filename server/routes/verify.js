@@ -46,6 +46,7 @@ router.post('/verify-transfers', async (req, res) => {
   let allGood = true;
   for (const bill of template) {
     if (bill.match_name) continue; // autopays from checking - nothing to transfer or verify in savings
+    if (bill.pass_through) continue; // funded from outside the user's own paycheck - nothing of theirs to verify
     if (!isBillActiveThisCycle(bill, payDate, nextPayday)) continue; // not due before the next paycheck - nothing to verify yet
     const key = bill.category.replace(/ /g, '_').toLowerCase();
     const acctId = envMap[key];

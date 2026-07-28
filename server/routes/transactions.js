@@ -51,7 +51,9 @@ router.get('/safe-to-spend', async (req, res) => {
   // this cycle - a bill with a due_day set doesn't need money set aside on
   // every single cycle, just the one right before it's due.
   const activeBills = template.filter(r => isBillActiveThisCycle(r, payDate, nextPayday));
-  const allocated = activeBills.reduce((s,r) => s + r.amount, 0);
+  // Pass-through bills are funded by money from outside the user's own
+  // paycheck, so they don't reduce what's actually theirs to allocate.
+  const allocated = activeBills.filter(r => !r.pass_through).reduce((s,r) => s + r.amount, 0);
 
   // A cycle that ends negative shouldn't just vanish when the next one
   // starts fresh - that overspending is still real money you're behind on.
@@ -108,8 +110,10 @@ router.get('/safe-to-spend', async (req, res) => {
     totalSpent: spent,
     nextPayday,
     checklist: activeBills.map(r => ({
-      category: r.category, amount: r.amount, autopay: !!r.match_name,
-      description: r.match_name ? `Already budgeted — auto-pays from checking` : `Transfer $${r.amount} to ${r.category}`,
+      category: r.category, amount: r.amount, autopay: !!r.match_name || !!r.pass_through,
+      description: r.pass_through
+        ? `Funded from outside your paycheck — just make sure it goes out`
+        : r.match_name ? `Already budgeted — auto-pays from checking` : `Transfer $${r.amount} to ${r.category}`,
     })),
     spending: spending
       .sort((a,b) => new Date(b.date) - new Date(a.date))

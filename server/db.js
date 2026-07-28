@@ -35,6 +35,12 @@ try { db.exec('ALTER TABLE credit_cards ADD COLUMN match_name TEXT'); } catch (e
 // cycle" - the old behavior - so existing bills keep working until the
 // user assigns a real due date via the bill template page.
 try { db.exec('ALTER TABLE bills_template ADD COLUMN due_day INTEGER'); } catch (e) { /* column already exists */ }
+// A bill funded by money coming from outside the user's own paycheck (e.g.
+// someone else sends the money to cover it) - net zero to the user's own
+// budget, so it's excluded from billsAllocated/discretionary budget and
+// from savings-transfer verification, but still shown on the checklist as
+// a due-date reminder (treated like autopay for "done" purposes there).
+try { db.exec('ALTER TABLE bills_template ADD COLUMN pass_through INTEGER DEFAULT 0'); } catch (e) { /* column already exists */ }
 
 // One-time fixup: an earlier version of the cycle_baselines migration logic
 // carried forward the old ratcheting system's already-corrupted value as a

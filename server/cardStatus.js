@@ -8,6 +8,23 @@ function occurrenceInMonth(year, month, dueDay) {
 }
 function localMidnight(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 
+// Parses a 'YYYY-MM-DD' string as a local-midnight Date, not UTC midnight -
+// `new Date('YYYY-MM-DD')` parses as UTC, which can land on the wrong local
+// calendar day in negative-UTC-offset timezones (the US). Every date-string
+// input in this app should go through this instead of the Date constructor.
+function localDateFromISO(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+// Adds days to a 'YYYY-MM-DD' string using local date components (so month/
+// year rollover is handled correctly) and returns the result in the same
+// string format.
+function addDaysISO(s, days) {
+  const [y, m, d] = s.split('-').map(Number);
+  return localISODate(new Date(y, m - 1, d + days));
+}
+
 // The due-day occurrence <= today (could be today itself).
 function mostRecentOccurrence(dueDay, today) {
   let y = today.getFullYear(), m = today.getMonth();
@@ -80,4 +97,7 @@ function getCardStatus(card, now = new Date()) {
   return { status: 'overdue', date: lastDue, dateStr: localISODate(lastDue), daysOverdue };
 }
 
-module.exports = { getCardStatus, mostRecentOccurrence, nextOccurrence, occurrenceAfter, localMidnight, localISODate };
+module.exports = {
+  getCardStatus, mostRecentOccurrence, nextOccurrence, occurrenceAfter,
+  localMidnight, localISODate, localDateFromISO, addDaysISO,
+};

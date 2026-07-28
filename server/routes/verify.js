@@ -4,6 +4,7 @@ const plaidClient = require('../plaidClient');
 const db = require('../db');
 const { detectPaycheck } = require('../paycheck');
 const { getTxns } = require('./transactions');
+const { nextPaydayFrom, isBillActiveThisCycle } = require('../billSchedule');
 
 const envMap = {
   rent: process.env.SAVINGS_RENT_ID,
@@ -34,6 +35,7 @@ router.post('/verify-transfers', async (req, res) => {
   const paycheck = detectPaycheck(txns);
   if (!paycheck) return res.json({ allGood: false, details: [{ category: 'All bills', status: 'No paycheck detected yet this cycle' }] });
   const payDate = paycheck.date;
+  const nextPayday = nextPaydayFrom(payDate);
 
   const template = db.prepare('SELECT * FROM bills_template').all();
 
@@ -44,6 +46,7 @@ router.post('/verify-transfers', async (req, res) => {
   let allGood = true;
   for (const bill of template) {
     if (bill.match_name) continue; // autopays from checking - nothing to transfer or verify in savings
+    if (!isBillActiveThisCycle(bill, payDate, nextPayday)) continue; // not due before the next paycheck - nothing to verify yet
     const key = bill.category.replace(/ /g, '_').toLowerCase();
     const acctId = envMap[key];
     if (!acctId || acctId === 'placeholder') {

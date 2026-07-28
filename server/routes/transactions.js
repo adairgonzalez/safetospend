@@ -4,6 +4,7 @@ const plaidClient = require('../plaidClient');
 const db = require('../db');
 const { isTransfer, detectPaycheck } = require('../paycheck');
 const { detectCardPayments } = require('../cardPaymentDetect');
+const { nextPaydayFrom, isBillActiveThisCycle } = require('../billSchedule');
 
 async function getTxns(accessToken, start, end) {
   const res = await plaidClient.transactionsGet({
@@ -44,8 +45,13 @@ router.get('/safe-to-spend', async (req, res) => {
   if (!paycheck) return res.json({ error: 'No paycheck found yet', retryable: true });
   const hasPinnedAccount = process.env.PAYCHECK_ACCOUNT_ID && process.env.PAYCHECK_ACCOUNT_ID !== 'placeholder';
   const payAmt = -paycheck.amount, payDate = paycheck.date;
+  const nextPayday = nextPaydayFrom(payDate);
   const template = db.prepare('SELECT * FROM bills_template').all();
-  const allocated = template.reduce((s,r) => s + r.amount, 0);
+  // Only bills actually due before the next paycheck arrives count toward
+  // this cycle - a bill with a due_day set doesn't need money set aside on
+  // every single cycle, just the one right before it's due.
+  const activeBills = template.filter(r => isBillActiveThisCycle(r, payDate, nextPayday));
+  const allocated = activeBills.reduce((s,r) => s + r.amount, 0);
 
   // A cycle that ends negative shouldn't just vanish when the next one
   // starts fresh - that overspending is still real money you're behind on.
@@ -71,7 +77,7 @@ router.get('/safe-to-spend', async (req, res) => {
   const reimbursableIds = new Set(
     db.prepare('SELECT transaction_id FROM reimbursements WHERE user_id=?').all(req.user.userId).map(r => r.transaction_id)
   );
-  const autopayMatchers = template.map(r => r.match_name).filter(Boolean).map(s => s.toUpperCase());
+  const autopayMatchers = activeBills.map(r => r.match_name).filter(Boolean).map(s => s.toUpperCase());
   const isAutopayBill = (t) => autopayMatchers.some(m => (t.name || '').toUpperCase().includes(m));
   const debitsSincePayday = txns.filter(t => {
     if (hasPinnedAccount && t.account_id !== process.env.PAYCHECK_ACCOUNT_ID) return false;
@@ -100,8 +106,8 @@ router.get('/safe-to-spend', async (req, res) => {
     billsAllocated: allocated,
     carryoverDeficit: Math.round(carryoverDeficit*100)/100,
     totalSpent: spent,
-    nextPayday: new Date(new Date(payDate).getTime() + 14*86400000).toISOString().slice(0,10),
-    checklist: template.map(r => ({
+    nextPayday,
+    checklist: activeBills.map(r => ({
       category: r.category, amount: r.amount, autopay: !!r.match_name,
       description: r.match_name ? `Already budgeted — auto-pays from checking` : `Transfer $${r.amount} to ${r.category}`,
     })),

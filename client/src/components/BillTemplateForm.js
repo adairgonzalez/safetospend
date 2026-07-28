@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const defaultCategories = [
-  { category: 'Rent', amount: 718 },
-  { category: 'Tesla', amount: 430 },
-  { category: 'Insurance', amount: 115 },
-  { category: 'Electricity', amount: 51 },
-  { category: 'Credit Card Minimums', amount: 475 },
-  { category: 'Extra Debt Payment', amount: 750 },
+  { category: 'Rent', amount: 718, due_day: null },
+  { category: 'Tesla', amount: 430, due_day: null },
+  { category: 'Insurance', amount: 115, due_day: null },
+  { category: 'Electricity', amount: 51, due_day: null },
+  { category: 'Credit Card Minimums', amount: 475, due_day: null },
+  { category: 'Extra Debt Payment', amount: 750, due_day: null },
 ];
 
 export default function BillTemplateForm({ token }) {
@@ -33,15 +33,26 @@ export default function BillTemplateForm({ token }) {
         <button className="btn btn-ghost btn-sm" onClick={() => navigate('/more')}>Back</button>
       </div>
       <div className="card">
-        <h3 className="section-title">Per paycheck</h3>
+        <h3 className="section-title">Bills</h3>
+        <p className="muted" style={{fontSize:12.5, lineHeight:1.5, marginBottom:14}}>
+          Set a due day and this bill's <strong>full</strong> monthly amount only counts toward the one
+          paycheck cycle it's actually due before — not every cycle. Leave due day blank to keep the old
+          behavior (set aside every cycle, e.g. for an aggregate category like credit card minimums).
+        </p>
         {categories.map((c, i) => (
-          <div key={i} style={{display:'flex', gap:10, marginBottom:10}}>
-            <input value={c.category} onChange={e => { const n = [...categories]; n[i] = {...n[i], category: e.target.value}; setCategories(n); }} />
-            <input type="number" style={{maxWidth:120}} value={c.amount} onChange={e => { const n = [...categories]; n[i] = {...n[i], amount: parseFloat(e.target.value)||0}; setCategories(n); }} />
+          <div key={i} style={{display:'flex', gap:8, marginBottom:10}}>
+            <input style={{flex:2}} value={c.category} onChange={e => { const n = [...categories]; n[i] = {...n[i], category: e.target.value}; setCategories(n); }} />
+            <input type="number" style={{flex:1, minWidth:0}} value={c.amount} onChange={e => { const n = [...categories]; n[i] = {...n[i], amount: parseFloat(e.target.value)||0}; setCategories(n); }} />
+            <input
+              type="number" min="1" max="31" placeholder="Due day"
+              style={{flex:1, minWidth:0}}
+              value={c.due_day ?? ''}
+              onChange={e => { const n = [...categories]; n[i] = {...n[i], due_day: e.target.value ? parseInt(e.target.value, 10) : null}; setCategories(n); }}
+            />
           </div>
         ))}
         <div className="row" style={{marginTop:6}}>
-          <span className="muted">Total set aside</span>
+          <span className="muted">Total monthly</span>
           <span className="row-amount">{total.toLocaleString('en-US',{style:'currency',currency:'USD'})}</span>
         </div>
         <button className="btn btn-block" style={{marginTop:16}} onClick={save} disabled={saved}>{saved ? 'Saved ✓' : 'Save'}</button>

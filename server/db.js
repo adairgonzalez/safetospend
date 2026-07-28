@@ -31,6 +31,10 @@ try { db.exec('ALTER TABLE credit_cards ADD COLUMN credit_limit REAL'); } catch 
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN closed INTEGER DEFAULT 0'); } catch (e) { /* column already exists */ }
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN promo_balance REAL'); } catch (e) { /* column already exists */ }
 try { db.exec('ALTER TABLE credit_cards ADD COLUMN match_name TEXT'); } catch (e) { /* column already exists */ }
+// Day of month a bill is actually due (1-31). Unset (NULL) means "every
+// cycle" - the old behavior - so existing bills keep working until the
+// user assigns a real due date via the bill template page.
+try { db.exec('ALTER TABLE bills_template ADD COLUMN due_day INTEGER'); } catch (e) { /* column already exists */ }
 
 // One-time fixup: an earlier version of the cycle_baselines migration logic
 // carried forward the old ratcheting system's already-corrupted value as a

@@ -206,4 +206,16 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('add_gf_insurance_b
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('add_gf_insurance_bill_v1');
 }
 
+// Rent and Tesla's stored amounts were exactly half the real monthly figure,
+// confirmed in conversation. Electricity wasn't ($90 halved was already the
+// full-ish estimate from bump_electricity_budget_v1, not half of anything) -
+// $120 is the real full-monthly max, not a doubling of the stored value.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('set_bill_due_dates_v2')) {
+  const upd = db.prepare('UPDATE bills_template SET amount=?, due_day=? WHERE category=?');
+  upd.run(1436, 1, 'Rent');
+  upd.run(860, 13, 'Tesla');
+  upd.run(120, 9, 'Electricity');
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('set_bill_due_dates_v2');
+}
+
 module.exports = db;

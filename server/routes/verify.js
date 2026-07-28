@@ -15,6 +15,16 @@ const envMap = {
   extra_debt_payment: process.env.SAVINGS_DEBT_EXTRA_ID,
 };
 
+// All four SAVINGS_*_ID vars point at the same physical "Bills and Debt"
+// account in practice, so any bill category not explicitly listed above
+// (e.g. a new one added later) falls back to that shared account instead
+// of needing a code change every time a bill is added.
+function resolveSavingsAccountId(key) {
+  const mapped = envMap[key];
+  if (mapped && mapped !== 'placeholder') return mapped;
+  return process.env.SAVINGS_RENT_ID;
+}
+
 router.post('/verify-transfers', async (req, res) => {
   const user = db.prepare('SELECT plaid_access_token FROM users WHERE id=?').get(req.user.userId);
   if (!user?.plaid_access_token) return res.json({ error: 'No bank linked' });
@@ -49,7 +59,7 @@ router.post('/verify-transfers', async (req, res) => {
     if (bill.pass_through) continue; // funded from outside the user's own paycheck - nothing of theirs to verify
     if (!isBillActiveThisCycle(bill, payDate, nextPayday)) continue; // not due before the next paycheck - nothing to verify yet
     const key = bill.category.replace(/ /g, '_').toLowerCase();
-    const acctId = envMap[key];
+    const acctId = resolveSavingsAccountId(key);
     if (!acctId || acctId === 'placeholder') {
       details.push({ category: bill.category, status: 'No savings account mapped in .env' });
       continue;
@@ -144,7 +154,7 @@ router.post('/mark-transferred', async (req, res) => {
   if (!paycheck) return res.status(400).json({ error: 'No paycheck detected yet this cycle' });
 
   const key = category.replace(/ /g, '_').toLowerCase();
-  const acctId = envMap[key];
+  const acctId = resolveSavingsAccountId(key);
   if (!acctId || acctId === 'placeholder') {
     return res.status(400).json({ error: 'No savings account mapped for this bill in .env' });
   }

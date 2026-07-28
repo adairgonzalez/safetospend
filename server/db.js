@@ -218,4 +218,17 @@ if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('set_bill_due_dates
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run('set_bill_due_dates_v2');
 }
 
+// Student loan payments ($162.12 total across multiple Direct Loans) auto-
+// draft directly from the Bills and Debt savings account (*7565) on the
+// 16th of each month, starting 8/16/2026 - not from checking, so no
+// match_name/checking-autopay exclusion applies. Modeled just like Rent:
+// money needs to be transferred into that account before the due date,
+// verified the same way.
+if (!db.prepare('SELECT 1 FROM migrations WHERE name=?').get('add_student_loans_bill_v1')) {
+  if (!db.prepare('SELECT 1 FROM bills_template WHERE category=?').get('Student Loans')) {
+    db.prepare('INSERT INTO bills_template (category, amount, due_day) VALUES (?,?,?)').run('Student Loans', 162.12, 16);
+  }
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run('add_student_loans_bill_v1');
+}
+
 module.exports = db;

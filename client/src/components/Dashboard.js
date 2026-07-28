@@ -7,6 +7,15 @@ import { RefreshIcon, ArrowUpIcon, WarningIcon, CalendarIcon } from './Icons';
 
 const usd = (n) => (typeof n === 'number' ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
+// 'YYYY-MM-DD' parsed as local midnight, not UTC - new Date('YYYY-MM-DD')
+// parses as UTC, which can land a day off from the intended local calendar
+// date depending on the browser's timezone offset.
+const parseLocalDate = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const todayLocalISO = () => {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+};
+
 const cardStatusLabel = (c) => {
   if (c.status === 'overdue') return `${c.daysOverdue} day${c.daysOverdue === 1 ? '' : 's'} overdue`;
   if (c.status === 'due_today') return 'due today';
@@ -115,8 +124,18 @@ export default function Dashboard({ token, onLogout }) {
   , !data.noBank);
 
   const tone = data.safeToSpend < 0 ? 'bad' : data.safeToSpend < 50 ? 'warn' : 'good';
-  const daysLeft = Math.max(0, Math.ceil((new Date(data.nextPayday) - new Date()) / 86400000));
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const daysLeft = Math.max(0, Math.round((parseLocalDate(data.nextPayday) - today) / 86400000));
   const cyclePct = Math.max(0, Math.min(100, 100 - (daysLeft / 14) * 100));
+
+  // Recalculated fresh from whatever's actually left, not a number fixed at
+  // the start of the cycle - a light day pushes tomorrow's allowance up, a
+  // heavy day pulls it down, instead of punishing normal lumpy spending.
+  const todaysAllowance = daysLeft > 0 ? data.safeToSpend / daysLeft : data.safeToSpend;
+  const spentToday = (data.spending || [])
+    .filter(t => t.date === todayLocalISO())
+    .reduce((s, t) => s + t.amount, 0);
+  const allowanceTone = spentToday > todaysAllowance ? 'bad' : spentToday > todaysAllowance * 0.8 ? 'warn' : 'good';
 
   // Cards due later this cycle but not actionable yet - overdue/due-today
   // cards live in the Paycheck Plan checklist below instead, so they aren't
@@ -133,6 +152,10 @@ export default function Dashboard({ token, onLogout }) {
         <AnimatedNumber value={data.safeToSpend} className={`hero-amount ${tone}`} />
         <div className="hero-sub">until {data.nextPayday} · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</div>
         <div className="hero-progress"><div className="hero-progress-fill" style={{ width: `${cyclePct}%` }} /></div>
+        <div className={`hero-allowance ${allowanceTone}`}>
+          Today's allowance: <strong>{usd(todaysAllowance)}</strong>
+          {spentToday > 0 && <span className="hero-allowance-spent"> · spent {usd(spentToday)} today</span>}
+        </div>
       </div>
 
       <div className="stats">

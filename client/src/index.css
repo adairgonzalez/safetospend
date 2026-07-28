@@ -82,6 +82,11 @@ body {
 .hero-sub { color: var(--muted); margin-top: 8px; font-size: 13px; }
 .hero-progress { height: 5px; border-radius: 99px; background: var(--border-soft); margin-top: 12px; overflow: hidden; }
 .hero-progress-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), #16a34a); transition: width 0.6s cubic-bezier(.2,.8,.2,1); }
+.hero-allowance { margin-top: 12px; font-size: 13px; padding: 8px 14px; border-radius: 10px; display: inline-block; }
+.hero-allowance.good { background: rgba(74,222,128,0.12); color: var(--green); }
+.hero-allowance.warn { background: rgba(251,191,36,0.12); color: var(--amber); }
+.hero-allowance.bad { background: rgba(251,113,133,0.12); color: var(--red); }
+.hero-allowance-spent { opacity: 0.75; }
 
 /* ---------- Stats ---------- */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px; }

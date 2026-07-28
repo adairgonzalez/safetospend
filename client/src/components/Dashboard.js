@@ -144,12 +144,13 @@ export default function Dashboard({ token, onLogout }) {
     .filter(c => c.status === 'upcoming' && c.dateStr && c.dateStr <= data.nextPayday)
     .map((c, i) => ({ key: `card-${i}`, name: c.name, amount: c.minimum, dateStr: c.dateStr, label: cardStatusLabel(c) }));
 
-  // Bills not due before the next paycheck - the new due-date-aware
-  // scheduling leaves these off this cycle's Paycheck Plan checklist
-  // entirely, so without this they'd be invisible until the cycle they're
-  // actually required in.
+  // Any bill whose due date hasn't passed yet - regardless of whether it's
+  // active in the Paycheck Plan checklist this cycle. Being "Transferred"
+  // (money set aside) isn't the same as the bill actually being paid, so a
+  // bill due later this cycle stays visible here as a reminder even after
+  // its transfer is done, until its due date itself passes.
   const upcomingTemplateBills = (data.checklist || [])
-    .filter(c => c.active === false && c.dueDate)
+    .filter(c => c.dueDate && c.dueDate >= todayLocalISO())
     .map((c, i) => ({ key: `bill-${i}`, name: c.category, amount: c.amount, dateStr: c.dueDate, label: `due ${c.dueDate}` }));
 
   const upcomingBills = [...upcomingCards, ...upcomingTemplateBills]

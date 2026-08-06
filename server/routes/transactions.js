@@ -87,7 +87,12 @@ router.get('/safe-to-spend', async (req, res) => {
   });
   const spending = debitsSincePayday.filter(t => !reimbursableIds.has(t.transaction_id));
   const spent = spending.reduce((s,t) => s + t.amount, 0);
-  const safe = discBudget - spent;
+
+  // A manual write-off from "Reset negative balance", if this cycle already
+  // has one on record - keeps applying on every recompute so it sticks
+  // across reloads instead of getting overwritten by the next live number.
+  const adjustment = db.prepare('SELECT adjustment FROM cycle_history WHERE user_id=? AND pay_date=?').get(req.user.userId, payDate)?.adjustment || 0;
+  const safe = discBudget - spent + adjustment;
 
   const reimbursements = db.prepare('SELECT transaction_id, name, amount, date, received FROM reimbursements WHERE user_id=? ORDER BY flagged_at DESC').all(req.user.userId);
 
@@ -107,6 +112,7 @@ router.get('/safe-to-spend', async (req, res) => {
     discretionaryBudget: discBudget,
     billsAllocated: allocated,
     carryoverDeficit: Math.round(carryoverDeficit*100)/100,
+    adjustment: Math.round(adjustment*100)/100,
     totalSpent: spent,
     nextPayday,
     checklist: template.map(r => ({
@@ -122,6 +128,22 @@ router.get('/safe-to-spend', async (req, res) => {
       .map(t => ({ transaction_id: t.transaction_id, date: t.date, name: t.name, amount: t.amount, pending: !!t.pending })),
     reimbursements
   });
+});
+
+// Manual write-off for the current cycle's negative safe-to-spend - "I'm
+// treating this deficit as forgiven, stop carrying it forward." Applied as
+// a persistent adjustment on the most recent cycle_history row rather than
+// editing safe_to_spend directly, since that value gets recomputed fresh
+// from real spending on every /safe-to-spend load and would otherwise just
+// snap back to negative on the next reload.
+router.post('/reset-deficit', (req, res) => {
+  const row = db.prepare('SELECT pay_date, safe_to_spend, adjustment FROM cycle_history WHERE user_id=? ORDER BY pay_date DESC LIMIT 1').get(req.user.userId);
+  if (!row) return res.status(400).json({ error: 'No cycle data yet' });
+  if (row.safe_to_spend >= 0) return res.json({ success: true, adjusted: false });
+  const delta = -row.safe_to_spend;
+  db.prepare('UPDATE cycle_history SET adjustment = COALESCE(adjustment,0) + ?, safe_to_spend = 0 WHERE user_id=? AND pay_date=?')
+    .run(delta, req.user.userId, row.pay_date);
+  res.json({ success: true, adjusted: true, amount: Math.round(delta * 100) / 100 });
 });
 
 // Excludes a specific charge from spending because it'll be paid back

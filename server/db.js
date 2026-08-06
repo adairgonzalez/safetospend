@@ -41,6 +41,11 @@ try { db.exec('ALTER TABLE bills_template ADD COLUMN due_day INTEGER'); } catch 
 // from savings-transfer verification, but still shown on the checklist as
 // a due-date reminder (treated like autopay for "done" purposes there).
 try { db.exec('ALTER TABLE bills_template ADD COLUMN pass_through INTEGER DEFAULT 0'); } catch (e) { /* column already exists */ }
+// A manual write-off applied to a cycle's safe-to-spend (e.g. via the
+// "Reset negative balance" button) - added into the safe-to-spend
+// calculation every time it's recomputed so it sticks across reloads
+// instead of being overwritten by the next live recalculation.
+try { db.exec('ALTER TABLE cycle_history ADD COLUMN adjustment REAL DEFAULT 0'); } catch (e) { /* column already exists */ }
 
 // One-time fixup: an earlier version of the cycle_baselines migration logic
 // carried forward the old ratcheting system's already-corrupted value as a

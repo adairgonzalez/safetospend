@@ -59,6 +59,10 @@ export default function Dashboard({ token, onLogout }) {
   });
   const unflagReimbursable = (transaction_id) => callAndReload('/api/transactions/unflag-reimbursable', { transaction_id });
   const markReimbursed = (transaction_id) => callAndReload('/api/transactions/mark-reimbursed', { transaction_id });
+  const resetDeficit = () => {
+    if (!window.confirm('Write off this cycle\'s negative balance to $0? This does not undo any real spending, it just stops it from carrying into the next cycle.')) return;
+    callAndReload('/api/transactions/reset-deficit', {});
+  };
 
   const forceRefresh = () => {
     setRefreshing(true);
@@ -167,6 +171,9 @@ export default function Dashboard({ token, onLogout }) {
           Today's allowance: <strong>{usd(todaysAllowance)}</strong>
           {spentToday > 0 && <span className="hero-allowance-spent"> · spent {usd(spentToday)} today</span>}
         </div>
+        {data.safeToSpend < 0 && (
+          <button className="quiet" style={{ marginTop: 10 }} onClick={resetDeficit}>Reset negative balance</button>
+        )}
       </div>
 
       <div className="stats">
